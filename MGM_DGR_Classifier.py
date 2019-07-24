@@ -24,7 +24,24 @@ def timeEndTime(startTime):
 #Read and return the 3-channel BGR image at the path given.
 def readImage(path):
 	return cv2.imread(path, cv2.IMREAD_COLOR)
-	
+
+#Divide a list of images into a grid of seeds. Divide the grid into a list of seeds.
+def divideGrid(imageList):
+	seedImageList = []
+	for image in imageList:
+		w = image.shape[1]/17	#w = width/(# of seeds horizontal)
+		h = image.shape[0]/7	#h = height/(# of seeds vertical)
+		y=x=0
+		while y < image.shape[0]:
+			while x < image.shape[1]:
+				seedImageList.append(image[round(y):round(y+h),round(x):round(x+w)])
+				x = x+w
+			x = 0
+			y = y+h
+
+	return seedImageList
+
+
 #Display the given image
 def displayImg(img, cmap='bgr', title='', block=True):
 	plt.title(title)
@@ -54,14 +71,14 @@ def differenceImgColor(imgP, colorChipP, dgr='rel'):
 	img = convertBRGToHSV(imgP)
 	colorChip = convertBRGToHSV(colorChipP)
 	
-	displayImg(img, cmap='hsv', title='HSV img')
+	#displayImg(img, cmap='hsv', title='HSV img')
 		
 	diffImg = np.ones(shape=img.shape[:2])
 	for i in range(img.shape[0]):
 		for j in range(img.shape[1]):
 			diffImg[i][j] = hueDistanceGreen(img[i][j], colorChip[0][0], mode=dgr)
 		
-	displayImg(diffImg, cmap='gray', title='Distance Pure Img')
+	#displayImg(diffImg, cmap='gray', title='Distance Pure Img')
 	
 	diffImgCopy = np.zeros_like(diffImg)
 	diffImgCopy[0] = np.array([0 for i in range(diffImgCopy.shape[1])])
@@ -211,16 +228,16 @@ def markBackForeGround(img):
 				cooldownCur = cooldownCap
 			cooldownCur = cooldownCur - 1
 	
-	displayImg(markerMsk, cmap='jet', title='marker mask')
-	displayImg(maskImg(img, markerMsk, 254), title = 'marker mask')
+	#displayImg(markerMsk, cmap='jet', title='marker mask')
+	#displayImg(maskImg(img, markerMsk, 254), title = 'marker mask')
 	
-	print("Initial marking finished. " + timeEndTime(startTime))
+	#print("Initial marking finished. " + timeEndTime(startTime))
 	
 	return markerMsk
 
 #Create BW watershed mask 
 def createWatershedMsk(img, markerMsk):
-	startTime = time.time()
+	#watershedTime = time.time()
 	
 	markerMskCopy = markerMsk.copy()
 	
@@ -231,14 +248,13 @@ def createWatershedMsk(img, markerMsk):
 	watershedMsk[watershedMsk == 1] = 0
 	watershedMsk[watershedMsk > 1] = 255
 	
-	displayImg(watershedMsk, cmap='gray', title='Initial Watershed Mask')
-	
+	#displayImg(watershedMsk, cmap='gray', title='Initial Watershed Mask')
 	watershedMsk = fillHoles(watershedMsk.copy())
 	
-	displayImg(watershedMsk, cmap='gray', title='Filled Watershed Mask')
-	displayImg(maskImg(img, watershedMsk, 200), title='Filled Watershed Mask')
+	#displayImg(watershedMsk, cmap='gray', title='Filled Watershed Mask')
+	#displayImg(maskImg(img, watershedMsk, 200), title='Filled Watershed Mask')
 	
-	print("Watershed mask creation finished. " + timeEndTime(startTime))
+	#print("Watershed mask creation finished. " + timeEndTime(watershedTime))
 	
 	return watershedMsk
 
@@ -276,12 +292,14 @@ def isBackground(imgPxl):
 #Fill in small holes (val <= 0)in the image.
 #maxSize = 85
 def fillHoles(img, maxSize = 524):
+	startTime = time.time()
+	workImg = img.copy()
 	#Use floodfill and fill in the image
 	i = j = 1
 	while i < img.shape[0]-1:
 		while j < img.shape[1]-1:
 			if fillCriteria(img, i, j):
-				img = floodfill(img, i, j, maxSize)
+				img, workImg = floodfill(img, workImg, i, j, maxSize)
 			removeSinglePixel(img, i, j, 255)
 			j = j+1
 			
@@ -292,17 +310,27 @@ def fillHoles(img, maxSize = 524):
 
 #Return true if the current pixel should be filled in.
 #returns false if the pxl's cross area is all blank.
-def fillCriteria(img, i, j, threshold=1):
+def fillCriteria(img, i, j, threshold=0):
 	return img[i][j]<=threshold and (img[i-1][j]>threshold or img[i+1][j]>threshold or img[i][j-1]>threshold or img[i][j+1]>threshold) 
 
-def floodfill(img, i, j, maxSize, replacedC = 0, replacementC = 255):
+#FloodFill algorithm that reverts changes if the flooded blob is too large
+#Uses a modified scanline algorithm.
+def floodfill(img, workImg, i, j, maxSize, replacedC = 0, replacementC = 255):
+	
 	#Floodfill algorithm
 	if(i < 0 or j < 0 or i == img.shape[0] or j == img.shape[1] or img[i][j] > replacedC):
 		return img
 	
-	imgC = img.copy()
+	#Markers for covering examined pixels must be higher in value than the
+	#replacement value, and success or failure values must differ from each other.
+	initRepC = replacementC + 100
+	finaRepC = replacementC + 50
 	
-	imgC[i][j] = replacementC
+	#imgC = img.copy()	
+	#imgC[i][j] = replacementC
+	workImg[i][j] = initRepC
+	
+
 	
 	Q = queue.Queue()	
 	Q.put((i,j))
@@ -310,48 +338,68 @@ def floodfill(img, i, j, maxSize, replacedC = 0, replacementC = 255):
 	lengthCounter = 0
 	
 	while not Q.empty():
-		lengthCounter = lengthCounter + 1
-		if lengthCounter > maxSize:
-			return img
-		
 		n = Q.get()
+
+		#Do not keep the fill if the fill is too large or if it is touching another failed fill
+		lengthCounter = lengthCounter + 1
+		if lengthCounter > maxSize or touchingColour(n, workImg, finaRepC):
+			workImg[workImg==initRepC] = finaRepC
+			return [img, workImg]
+		
 		#west
-		if(n[1] > 0 and imgC[n[0]][n[1]-1] <= replacedC):
-			imgC[n[0]][n[1]-1] = replacementC
+		if(n[1] > 0 and workImg[n[0]][n[1]-1] <= replacedC):
+			workImg[n[0]][n[1]-1] = initRepC
 			Q.put((n[0],n[1]-1))
 		#east
-		if(n[1] < imgC.shape[1] - 2 and imgC[n[0]][n[1]+1] <= replacedC):
-			imgC[n[0]][n[1]+1] = replacementC
+		if(n[1] < img.shape[1] - 2 and workImg[n[0]][n[1]+1] <= replacedC):
+			workImg[n[0]][n[1]+1] = initRepC
 			Q.put((n[0],n[1]+1))
 		#north
-		if(n[0] > 0 and imgC[n[0]-1][n[1]] <= replacedC):
-			imgC[n[0]-1][n[1]] = replacementC
+		if(n[0] > 0 and workImg[n[0]-1][n[1]] <= replacedC):
+			workImg[n[0]-1][n[1]] = initRepC
 			Q.put((n[0]-1,n[1]))
 		#south
-		if(n[0] < imgC.shape[0]-2 and imgC[n[0]+1][n[1]] <= replacedC):
-			imgC[n[0]+1][n[1]] = replacementC
+		if(n[0] < img.shape[0]-2 and workImg[n[0]+1][n[1]] <= replacedC):
+			workImg[n[0]+1][n[1]] = initRepC
 			Q.put((n[0]+1,n[1]))
-			
-	return imgC 
+	
+	img[workImg==initRepC] = replacementC
+	workImg[workImg==initRepC] = finaRepC	
+	return [img, workImg] 
 
-#Removes a pixel that is solitary from an image)
+#Checks if a given pixel in a grayscale image is adjacent to another pixel with the given value
+def touchingColour(loc, img, touchCol):
+	#west
+	if(loc[1] > 0 and img[loc[0]][loc[1]-1] == touchCol):
+		return True
+	#east
+	if(loc[1] < img.shape[1] - 2 and img[loc[0]][loc[1]+1] == touchCol):
+		return True
+	#north
+	if(loc[0] > 0 and img[loc[0]-1][loc[1]] == touchCol):
+		return True
+	#south
+	if(loc[0] < img.shape[0]-2 and img[loc[0]+1][loc[1]] == touchCol):
+		return True
+	return False
+	
+#Removes a pixel that is solitary from an image
 def removeSinglePixel(img, i, j, threshold):
 	if img[i][j] >= threshold and img[i-1][j]<threshold and img[i+1][j]<threshold and img[i][j-1]<threshold and img[i][j+1]<threshold:
 		img[i][j] = 0
 
+
 #Display statistical data about a give seed
 def displaySeedInfo(seedFul, seedRel, seedDGR):
+
+	#Count the number of non-zero ([0,0,0]) pixels in each image
 	areaFul = areaRel = areaDGR = 0
+	imgNonZero = lambda x: np.count_nonzero(np.mean(x, axis=2))
+	areaFul = imgNonZero(seedFul)
+	areaRel = imgNonZero(seedRel)
+	areaDGR = imgNonZero(seedDGR)
 	
-	for i in range(seedFul.shape[0]):
-		for j in range(seedFul.shape[1]):
-			if seedFul[i][j][0]!=0 and seedFul[i][j][1]!=0 and seedFul[i][j][2]!=0:
-				areaFul = areaFul + 1
-			if seedRel[i][j][0]!=0 and seedRel[i][j][1]!=0 and seedRel[i][j][2]!=0:
-				areaRel = areaRel + 1
-			if seedDGR[i][j][0]!=0 and seedDGR[i][j][1]!=0 and seedDGR[i][j][2]!=0:
-				areaDGR = areaDGR + 1
-	
+	#Display the information about the seed.
 	if areaRel > 0:
 		dgrFrac = float(areaDGR)/float(areaRel)	
 		print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -383,13 +431,16 @@ def gradeCanola(dgrFrac):
 #Define parameters
 pgcPath = r"Images\PaleGreenChip.png"
 dgrPath = r"Images\DGRChip.png"
-#seedPaths = [r"Images\Seed4.png", r"Images\Seed9.png"	]
-seedPaths = [r"Images\Seed{}.png".format(i+1) for i in range(9)]
+seedGridImages = [r"..\GridPhotos\grid1.png"]
+#seedGridImages = [r"Images\Seed2.png"]
+seedGridImages = [r"Images\Seed{}.png".format(i+1) for i in range(9)]
+
 
 #Read images
 paleGreenChip = readImage(pgcPath)
 DGRChip = readImage(dgrPath)
-seedImgs = [readImage(seedPath) for seedPath in seedPaths]
+seedGridImages = [readImage(seedGridPath) for seedGridPath in seedGridImages]
+#seedGridImages = divideGrid(seedGridImages)
 
 #Average the DGR color
 paleGreenChip = averageImgColor(paleGreenChip)
@@ -398,37 +449,55 @@ displayImg(paleGreenChip, title='averaged pg chip')
 DGRChip = averageImgColor(DGRChip)
 displayImg(DGRChip, title='averaged DGR chip')
 
-
-for seedImg in seedImgs:
-	displayImg(seedImg, title = 'Seed img')
-	displayImg(convertBRGToHSV(seedImg), cmap='hsv', title = 'Seed img')
+progStartTime = time.time()
+for seedImg in seedGridImages[:]:
+	print()
+	totalTime = time.time()
+	#displayImg(seedImg, title = 'Seed img')
+	#displayImg(convertBRGToHSV(seedImg), cmap='hsv', title = 'Seed img')
 
 	#Compute watershed masks
+	#Approximately 47% of time: 40ms
+	watershedTime = time.time()	
 	markerMsk = markBackForeGround(seedImg)
-	watershedMsk = createWatershedMsk(seedImg, markerMsk)
+	watershedMsk = createWatershedMsk(seedImg, markerMsk)	
 	seedImg = maskImg(seedImg, watershedMsk, 1, background=False)
-	displayImg(seedImg, title='masked img')
+	
+	#displayImg(seedImg, title='masked img')
 	seedImgFul = seedImg.copy()
+	print("Watershed Mask created. " + timeEndTime(watershedTime))
 	
 	#Compute hsv distances
+	#Approximately 23% of time: 20ms
+	startTime = time.time()
 	colorDistances = differenceImgColor(seedImg, DGRChip)
-	displayImg(colorDistances, cmap='gray', title = 'Image Differences')
-	displayImg(colorDistances, cmap='jet', title = 'Image Differences')
+	#displayImg(colorDistances, cmap='gray', title = 'Image Differences')
+	#displayImg(colorDistances, cmap='jet', title = 'Image Differences')
 	maskedDist = maskImg(seedImg, colorDistances, 210)
-	displayImg(maskedDist, title='thresholded img')
+	#displayImg(maskedDist, title='thresholded img')
 	seedImgRel = maskImg(seedImg, colorDistances, 210, background=False)
-	displayImg(seedImgRel, title='thresholded img')
+	#displayImg(seedImgRel, title='thresholded img')
+	print("Relevant Seed Determined. " + timeEndTime(startTime))
 	
 	#Compute DGR distances
+	#Approximately 23% of time: 20ms
+	startTime = time.time()
 	colorDistances = differenceImgColor(seedImgRel.copy(), DGRChip, dgr='dgr')
-	displayImg(colorDistances, cmap='gray', title = 'Image Differences') 
-	displayImg(colorDistances, cmap='jet', title = 'Image Differences')
+	#displayImg(colorDistances, cmap='gray', title = 'Image Differences') 
+	#displayImg(colorDistances, cmap='jet', title = 'Image Differences')
 	maskedDist = maskImg(seedImgRel, colorDistances, 200)
-	displayImg(maskedDist, title='thresholded img')
+	#displayImg(maskedDist, title='thresholded img')
 	seedImgDGR = maskImg(seedImgRel, colorDistances, 200, background=False)
-	displayImg(seedImgDGR, title='thresholded img')
+	#displayImg(seedImgDGR, title='thresholded img')
+	print("DGR pixels determined." + timeEndTime(startTime))
 
 	#Display seed info
+	#Approximately 7% of time: 6ms
+	startTime = time.time()
 	displaySeedInfo(seedImgFul, seedImgRel, seedImgDGR)
+	print("Seed Info computed. " + timeEndTime(startTime))
+	
+	#Approximately 86ms
+	print("Seed analyzed. " + timeEndTime(totalTime))
 
-
+print("\nProgram finished. " + timeEndTime(progStartTime))
