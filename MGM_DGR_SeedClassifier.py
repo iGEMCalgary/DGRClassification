@@ -284,9 +284,9 @@ class SeedSampleAnalyzer:
 		
 		dgrFrac = greenSeedCount/usableSeedCount
 		sampleGrade = self.gradeCanola(dgrFrac)
-		print("The grade of the Canola sample is: {} ({} DGR Seeds/{} Total Sample Seeds = {}% DGR).".format(sampleGrade,greenSeedCount,usableSeedCount,dgrFrac*100))
+		print("The grade of the Canola sample is: {} ({} DGR Seeds/{} Total Sample Seeds = {}% DGR).".format(sampleGrade,greenSeedCount,usableSeedCount,round(dgrFrac*100,3)))
 		if totalSeedCount != greenSeedCount:
-			print("{} seeds were unable to be analyzed, and where thus removed from the grading process.".format(totalSeedCount-usableSeedCount))
+			print("{} seeds were unable to be analyzed, and were thus removed from the grading process.".format(totalSeedCount-usableSeedCount))
 	
 	#Determine if a seed is DGR or not based on its DGR pixel fraction
 	def isDGR(self, dgrFrac):

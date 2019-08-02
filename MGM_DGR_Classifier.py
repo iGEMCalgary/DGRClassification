@@ -14,10 +14,13 @@ sAnly = SeedSampleAnalyzer()				#Used for seed sample analysis
 #Default program variables
 progVariables = [r"CalibrationImages", r"DGRChip.png", r"Images", (1,1), 0]
 if len(sys.argv) == 7:
+	print("Custom settings used.")
 	progVariables = sys.argv[1:4]
 	progVariables.append((int(sys.argv[4]), int(sys.argv[5]))) 
 	progVariables.append(int(sys.argv[6]))
-	
+else:
+	print("Default settings used.")
+
 calibFolderPath = 	progVariables[0]		#Folder for calibration images
 calibFilePath =		progVariables[1]				#DGR calibration chip image
 seedFolderPath = 	progVariables[2]				#Folder for input seed images
