@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 import math
 import time
 from MGM_DGR_ImageFormatting import ImgUtility
+from MGM_DGR_ImageFormatting import ImgCalibrator
 from sklearn.preprocessing import MinMaxScaler
 
 #Classifier for seeds grades them on how much they are DGR
@@ -13,7 +14,8 @@ class SeedClassifier:
 	def __init__(self):
 		self.iForm = ImgUtility()
 		self.sAnly = SeedSampleAnalyzer()
-	
+		self.colorChipCol = np.array([255,255,255])
+		
 	#determine the difference between the current time and the given start time
 	def timeEndTime(self, startTime):
 		endTime = time.time()
@@ -42,12 +44,16 @@ class SeedClassifier:
 			seedImg, seedImgDisplaySI, seedImgRel = self.maskSmearFromSeedWithHSVDist(seedImg, dgrColChip)
 			
 			#Compute DGR distances and DGR pixels of the seed image
-			seedImg, seedImgDisplayDG, seedImgDGR = self.maskDGRFromSmearWithHSVDist(seedImg, dgrColChip)
+			seedImg, seedImgDisplayDG, seedImgDGR = self.maskDGRFromSmearWithLabDist(seedImg, dgrColChip)
 			
 			#Compute seed info
 			seedFrac = self.sAnly.gradeSeed(seedImgFul, seedImgRel, seedImgDGR)
 			if seedFrac != 'NaN':
-				seedInfo.append((seedImgFul, seedFrac))
+				seedInfo.append((seedImgDisplayWM, seedFrac))
+			
+			self.iForm.displayImg(seedImgDisplayWM)
+			self.iForm.displayImg(seedImgRel)
+			self.iForm.displayImg(seedImgDGR)
 			
 			#Approximately 86ms
 			print("Seed analyzed. " + self.timeEndTime(seedClassTime))
@@ -66,11 +72,11 @@ class SeedClassifier:
 		markerMsk = self.markBackForeGround(seedImg)							#Primary background-foreground marking
 		watershedMsk = self.createWatershedMsk(seedImg, markerMsk)			#Create watershed mask
 		
-		seedImgDisplay = self.iForm.maskImg(seedImg, watershedMsk, 1)	#create a masked image for display
-		seedImgFul = seedImg.copy()										#create the pure seed copy
-		
+		seedImgDisplay = self.iForm.maskImg(seedImg, watershedMsk, 1)				#create a masked image for display
 		seedImg = self.iForm.maskImg(seedImg, watershedMsk, 1, background=False)	#mask the image
 		
+		seedImgFul = seedImg.copy()													#create the pure seed copy
+
 		#print("Watershed Mask created. " + self.timeEndTime(watershedTime))	#Get time for watershed mask creation
 		return [seedImg, seedImgDisplay, seedImgFul]
 
@@ -159,15 +165,23 @@ class SeedClassifier:
 	
 	#Return an image displaying the differences in color between a given img and a colour
 	def differenceImgColor(self, imgP, colorChipP, dgr='rel'):
-		img = self.iForm.convertBRGToHSV(imgP)
-		colorChip = self.iForm.convertBRGToHSV(colorChipP)
+		
+		if dgr=='rel':
+			img = self.iForm.convertBGRToHSV(imgP)
+			distanceType = lambda x: self.hueDistanceGreen(x)
+		elif dgr=='dgr':
+			img = self.iForm.convertBGRToLab(imgP)
+			self.iForm.displayImg(img, cmap=None)
+			colorChip = self.iForm.convertBGRToLab(colorChipP)
+			self.colorChipCol = [colorChip[0][0][0]/2.55, colorChip[0][0][0]-128, colorChip[0][0][0]-128]
+			distanceType = lambda x: self.labDistanceChip(x)
 		
 		#Compute distances in colour
 		diffImg = np.ones(shape=img.shape[:2])
 		for i in range(img.shape[0]):
 			for j in range(img.shape[1]):
-				diffImg[i][j] = self.hueDistanceGreen(img[i][j], colorChip[0][0], mode=dgr)
-			
+				diffImg[i][j] = distanceType(img[i][j])
+							
 		#Scale and format the colour distances appropriately
 		diffImgCopy = np.zeros_like(diffImg)
 		diffImgCopy[0] = np.array([0 for i in range(diffImgCopy.shape[1])])
@@ -185,43 +199,64 @@ class SeedClassifier:
 		return diffImg
 	
 	#Compute differences in hue, saturation, and value	
-	def hueDistanceGreen(self, pxl1, colorChip, mode='rel'):
+	def hueDistanceGreen(self, pxl1):
 
 		#convert pixels to float channels
 		pxl1 = [float(pxl1[0]), float(pxl1[1]), float(pxl1[2])]
-		pxl2 = [float(colorChip[0]), float(colorChip[1]), float(colorChip[2])]
 		
 		if pxl1[0]==0 and pxl1[1]==0 and pxl1[2]==0:
-				return 90
-		
-		if mode=='rel':
-		
-			hueDiffWeight = 1.1
+			return 90
+				
+		hueDiffWeight = 1.1
 
-			#Distance penalties for gray = 1.4(x-70/2)
-			grayPenalty = lambda x: 1.4*(x-70/2) if x <= 70/2 else 0
-					
-			if pxl1[0] > 70/2 and pxl1[0] <= 130/2:
-				return grayPenalty(pxl1[1])
-			elif pxl1[0] <= 70/2:
-				return min([hueDiffWeight*abs(pxl1[0] - 70/2), hueDiffWeight*abs(180-(pxl1[0] - 70/2))]) + grayPenalty(pxl1[1])
-			else:
-				return min([hueDiffWeight*abs(pxl1[0] - 130/2), hueDiffWeight*abs(180-(pxl1[0] - 130/2))]) + grayPenalty(pxl1[1])
+		#Distance penalties for gray = 1.4(x-70/2)
+		grayPenalty = lambda x: 1.4*(x-70/2) if x <= 70/2 else 0
+				
+		if pxl1[0] > 70/2 and pxl1[0] <= 130/2:
+			return grayPenalty(pxl1[1])
+		elif pxl1[0] <= 70/2:
+			return min([hueDiffWeight*abs(pxl1[0] - 70/2), hueDiffWeight*abs(180-(pxl1[0] - 70/2))]) + grayPenalty(pxl1[1])
 		else:
-			hueDiffWeight = 1.8
-			
-			#Distance penalties for being brighter than pxl2 is straight to max 90
-			#Otherwise penalties exist for being less saturated offset by being darker.
-			#Penalty = 1.0(sat1 - sat2) + 1.0(bri1 - bri2)
-			brighterPenalty = lambda x: max([1.0*(x[0][1]-x[1][1])+1.0*(x[0][2]-x[1][2]),0]) if x[0][2] <= x[1][2] else 90
-			
-			if pxl1[0] > 70/2 and pxl1[0] <= 130/2:
-				return brighterPenalty((pxl1, pxl2))
-			elif pxl1[0] <= 70/2:
-				return min([min([hueDiffWeight*abs(pxl1[0] - 70/2), hueDiffWeight*abs(180-(pxl1[0] - 70/2))]) + brighterPenalty((pxl1, pxl2)), 90])
-			else:
-				return min([min([hueDiffWeight*abs(pxl1[0] - 130/2), hueDiffWeight*abs(180-(pxl1[0] - 130/2))]) + brighterPenalty((pxl1, pxl2)), 90])
-			
+			return min([hueDiffWeight*abs(pxl1[0] - 130/2), hueDiffWeight*abs(180-(pxl1[0] - 130/2))]) + grayPenalty(pxl1[1])
+		
+	#Compute differences between a pixel and a color in Lightness, a, and b
+	def labDistanceChip(self, pxl1):
+		#Convert pixels to Lab real values
+		pxl1 = [float(pxl1[0])/2.55, float(pxl1[1])-128., float(pxl1[2])-128.]
+		if pxl1[0]==0 and pxl1[1]==0 and pxl1[2]==0:
+			return 90
+		
+		#Distance penalties for being lighter than the colorChipCol is severe.
+		#Distance penalties for straying from the region of green is also severe.
+		totalPenalty = 0
+		
+		#Lighter penalty maxes out at +5 L
+		#P = 3.6*(1.L-2.L)**2
+		LDiff = pxl1[0] - self.colorChipCol[0]
+		if LDiff > 0:
+			totalPenalty = totalPenalty + 3.6*(LDiff**2)
+		
+		#Color penalty maxes out at distance d=20 from ab region
+		#P = rate*D = (90/d)*(limit-real)
+		#a region is [-128, -0.42*L]
+		rate = 90/20
+		
+		aDiff = pxl1[1] - (-0.42)*pxl1[0]
+		if aDiff > 0:
+			totalPenalty = totalPenalty + rate*aDiff
+		
+		#b region is [0, 0.62*L)]
+		bDiff = 0.62*pxl1[0] - pxl1[2]
+		if bDiff > 0:
+			totalPenalty = totalPenalty + rate*bDiff
+		
+		#if totalPenalty < 100:
+		#	print("lol")
+		#print(totalPenalty)
+		
+		#Max penalty is 90
+		return min([totalPenalty, 90])
+		
 	#Make all white black and black white
 	def reverseImg(self, diffImg):
 		return -1 * diffImg + 255 	
@@ -230,12 +265,15 @@ class SeedClassifier:
 	
 	#Mask the DGR pixels from the smear image using hsv hardcoded threshold values
 	#Returns [masked img, masked img for display, full smear img]
-	def maskDGRFromSmearWithHSVDist(self, seedImg, DGRChip):
+	def maskDGRFromSmearWithLabDist(self, seedImg, DGRChip):
 		startTime = time.time()																	#Begin timing
 		
 		colorDistances = self.differenceImgColor(seedImg.copy(), DGRChip, dgr='dgr')			#Get the differences in each pixel as a grayscale image
 
-		threshVal = 200																			#Threshold value	
+		self.iForm.displayImg(colorDistances, cmap='gray')
+
+
+		threshVal = 100																			#Threshold value	
 		seedImgDisplay = self.iForm.maskImg(seedImg, colorDistances, threshVal)					#Create the masked dgr img
 		seedImgDGR = self.iForm.maskImg(seedImg, colorDistances, threshVal, background=False)	#Create the masked dgr img for display
 		seedImg = seedImgDGR.copy()
@@ -284,7 +322,7 @@ class SeedSampleAnalyzer:
 		
 		dgrFrac = greenSeedCount/usableSeedCount
 		sampleGrade = self.gradeCanola(dgrFrac)
-		print("The grade of the Canola sample is: {} ({} DGR Seeds/{} Total Sample Seeds = {}% DGR).".format(sampleGrade,greenSeedCount,usableSeedCount,round(dgrFrac*100,3)))
+		print("The grade of the Canola sample is: {} ({} DGR Seeds/{} Total Sample Seeds = {}% DGR).".format(sampleGrade,greenSeedCount,usableSeedCount,dgrFrac*100))
 		if totalSeedCount != greenSeedCount:
 			print("{} seeds were unable to be analyzed, and were thus removed from the grading process.".format(totalSeedCount-usableSeedCount))
 	

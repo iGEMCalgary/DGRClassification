@@ -49,7 +49,7 @@ class ImgUtility:
 		return cv2.imread(path, cv2.IMREAD_COLOR)
 	
 	#Convert a BGR image into a hsv img
-	def convertBRGToHSV(self, img):
+	def convertBGRToHSV(self, img):
 		#Converting from HSV in plt to real HSV:
 		#H = plt.H * 2
 		#S = plt.S / 2.55
@@ -57,8 +57,20 @@ class ImgUtility:
 		return cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 	
 	#Convert an HSV image into a BGR image
-	def convertHSVtoBGR(self, img):
+	def convertHSVToBGR(self, img):
 		return cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
+	
+	#Convert a BGR image into a CIE L*a*b image
+	def convertBGRToLab(self, img):
+		#Converting from Lab in plt to real Lab:
+		#L = plt.L / 2.55
+		#a = plt.a + 128
+		#b = plt.b + 128
+		return cv2.cvtColor(img, cv2.COLOR_BGR2Lab)
+	
+	#Convert a Lab image into a BGR image
+	def convertLabToBGR(self, img):
+		return cv2.cvtColor(img, cv2.COLOR_Lab2BGR)
 	
 	#Turn an image (copy) into a list of subimages, according to given grid parameters.
 	def gridPartitionImg(self, img, numRows, numCols):
@@ -238,11 +250,11 @@ class ImgCalibrator:
 		iForm = ImgUtility()
 		correctedImg = iForm.convertBRGToHSV(img) + offsetImg
 		correctedImg = correctedImg.astype(np.uint8)
-		correctedImg = iForm.convertHSVtoBGR(correctedImg)
+		correctedImg = iForm.convertHSVToBGR(correctedImg)
 		
 		#Normalize the img
 		limitImg = np.full(img.shape, self.colourDict['white'])
-		limitImg = iForm.convertHSVtoBGR(limitImg.astype(np.uint8))
+		limitImg = iForm.convertHSVToBGR(limitImg.astype(np.uint8))
 		correctedImg = np.where(correctedImg<=255, correctedImg, limitImg)
 		
 		return correctedImg
