@@ -20,6 +20,7 @@ if len(sys.argv) == 7:
 	progVariables.append(int(sys.argv[6]))
 else:
 	print("Default settings used.")
+
 calibFolderPath = 	progVariables[0]		#Folder for calibration images
 calibFilePath =		progVariables[1]				#DGR calibration chip image
 seedFolderPath = 	progVariables[2]				#Folder for input seed images
@@ -32,7 +33,7 @@ startOffset =		progVariables[4]
 seedSampleImg = iForm.readLatestImageFromFolder(seedFolderPath, startOffset=startOffset)#Read the sample image with the multiple seeds
 seedSampleList = iForm.gridPartitionImg(seedSampleImg, seedSampleRows, seedSampleCols)	#Divide the whole image into the specified individual seed images
 #for seeds in seedSampleList:
-#	iForm.displayImg(seeds, cmap=None)
+#	iForm.displayImg(seeds)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 

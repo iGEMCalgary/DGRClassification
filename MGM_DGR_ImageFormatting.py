@@ -30,6 +30,10 @@ class ImgUtility:
 	def readImageFromFolder(self, folderPath, imgPath):
 		return self.readImage(str(os.path.join(folderPath, imgPath)))
 	
+	#Save a specific image to a given path in a folder
+	def saveImageToFolder(self, folderPath, imgPath, img):
+		cv2.imwrite(str(os.path.join(folderPath, imgPath)), img)
+	
 	#Read and return the most recent image in the folder given
 	def readLatestImageFromFolder(self, folderPath, startOffset=0):
 		sortedFiles = self.sortedFilesInFolder(folderPath)
@@ -71,6 +75,17 @@ class ImgUtility:
 	#Convert a Lab image into a BGR image
 	def convertLabToBGR(self, img):
 		return cv2.cvtColor(img, cv2.COLOR_Lab2BGR)
+	
+	#Crop an image. Can use either fractions or pixel values.
+	def cropImg(self, img, leftTopCorner, rightBotCorner):
+		if float(leftTopCorner[0]) < 1 or float(rightBotCorner[0]) < 1:
+			leftTopCorner = (float(leftTopCorner[0]),float(leftTopCorner[1]))
+			rightBotCorner = (float(rightBotCorner[0]),float(rightBotCorner[1]))
+			return img[round(leftTopCorner[1]*img.shape[0]):round(rightBotCorner[1]*img.shape[0]),round(leftTopCorner[0]*img.shape[1]):round(rightBotCorner[0]*img.shape[1])] 
+		else:
+			leftTopCorner = (int(leftTopCorner[0]),int(leftTopCorner[1]))
+			rightBotCorner = (int(rightBotCorner[0]),int(rightBotCorner[1]))
+			return img[leftTopCorner[1]:rightBotCorner[1], leftTopCorner[0]:rightBotCorner[0]]
 	
 	#Turn an image (copy) into a list of subimages, according to given grid parameters.
 	def gridPartitionImg(self, img, numRows, numCols):
