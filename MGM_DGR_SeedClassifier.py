@@ -34,8 +34,7 @@ class SeedClassifier:
 		
 		for seedImg in seedList:						#For each seed image:
 
-			seedClassTime = time.time()					#Begin timing for each seed 
-			#iForm.displayImg(seedImg, title = 'Seed img')		#Display the original seed image
+			seedClassTime = time.time()					#Begin timing for each seed 			
 			
 			#Compute watershed masks
 			seedImg, seedImgDisplayWM, seedImgFul = self.maskSeedFromBackgroundWithWatershed(seedImg)
@@ -49,18 +48,19 @@ class SeedClassifier:
 			#Compute seed info
 			seedFrac = self.sAnly.gradeSeed(seedImgFul, seedImgRel, seedImgDGR)
 			if seedFrac != 'NaN':
-				seedInfo.append((seedImgDisplayWM, seedFrac))
-			
-			self.iForm.displayImg(seedImgDisplayWM)
-			self.iForm.displayImg(seedImgRel)
-			self.iForm.displayImg(seedImgDGR)
+				seedImgDisplayConf = np.full(seedImg.shape, self.sAnly.confidenceColour(seedFrac))
+				seedInfo.append(((seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), seedFrac))
+			else:
+				seedImgDisplayConf = np.full(seedImg.shape, self.sAnly.confidenceColour(-1))
+				seedInfo.append(((seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), -1))
 			
 			#Approximately 86ms
 			print("Seed analyzed. " + self.timeEndTime(seedClassTime))
-
-		print("\nSeed sample classification finished. " + self.timeEndTime(classificationStartTime) + "\n")
 		
-		return seedInfo
+		timeString = "\nSeed sample classification finished. " + self.timeEndTime(classificationStartTime)
+		print(timeString)
+		
+		return [seedInfo, timeString[38:]]
 	
 	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Watershed~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 	
@@ -171,7 +171,7 @@ class SeedClassifier:
 			distanceType = lambda x: self.hueDistanceGreen(x)
 		elif dgr=='dgr':
 			img = self.iForm.convertBGRToLab(imgP)
-			self.iForm.displayImg(img, cmap=None)
+
 			colorChip = self.iForm.convertBGRToLab(colorChipP)
 			self.colorChipCol = [colorChip[0][0][0]/2.55, colorChip[0][0][0]-128, colorChip[0][0][0]-128]
 			distanceType = lambda x: self.labDistanceChip(x)
@@ -270,9 +270,6 @@ class SeedClassifier:
 		
 		colorDistances = self.differenceImgColor(seedImg.copy(), DGRChip, dgr='dgr')			#Get the differences in each pixel as a grayscale image
 
-		self.iForm.displayImg(colorDistances, cmap='gray')
-
-
 		threshVal = 100																			#Threshold value	
 		seedImgDisplay = self.iForm.maskImg(seedImg, colorDistances, threshVal)					#Create the masked dgr img
 		seedImgDGR = self.iForm.maskImg(seedImg, colorDistances, threshVal, background=False)	#Create the masked dgr img for display
@@ -287,7 +284,9 @@ class SeedClassifier:
 class SeedSampleAnalyzer:
 	#Default constructor
 	def __init__(self):
-		self.x=5
+		self.dgrThreshold = 0.5
+		self.gradingColourDict = {'NotDGR':[0,255,255],'DGR':[0,0,255],'NaN':[255,0,0]}
+		self.iForm = ImgUtility()
 		
 	#Grade an individual seed
 	def gradeSeed(self, seedImgFul, seedImgRel, seedImgDGR):		
@@ -298,37 +297,52 @@ class SeedSampleAnalyzer:
 		areaRel = imgNonZero(seedImgRel)
 		areaDGR = imgNonZero(seedImgDGR)
 		
+		analysisString = "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+		
 		#Display the information about the seed.
 		if areaRel > 0:
-			dgrFrac = float(areaDGR)/float(areaRel)	
-			print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-			print("The full area of the seed is: {} pixels.".format(areaFul))
-			print("The relevant/non-hull area of the seed is: {} pixels.".format(areaRel))
-			print("The DGR area of the seed is: {} pixels.".format(areaDGR))
-			print("The DGR % of the seed is: {:5.3f}% DGR".format(dgrFrac*100))
-			print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+			dgrFrac = float(areaDGR)/float(areaRel)
+			analysisString = analysisString + "The full area of the seed is: {} pixels.".format(areaFul)
+			analysisString = analysisString + "The relevant/non-hull area of the seed is: {} pixels.".format(areaRel)
+			analysisString = analysisString + "The DGR area of the seed is: {} pixels.".format(areaDGR)
+			analysisString = analysisString + "The DGR % of the seed is: {:5.3f}% DGR".format(dgrFrac*100)
+			analysisString = analysisString + "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+			print(analysisString)
 		else:
-			print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-			print("No seed smear detected.")
+			analysisString = analysisString + "No seed smear detected."
+			analysisString = analysisString + "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+			print(analysisString)
 			return 'NaN'
-			print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 		
 		return dgrFrac
 		
 	#Analyze a full sample
-	def analyzeSeedSample(self, seedSampleInfo, totalSeedCount):
-		usableSeedCount = len(seedSampleInfo) 
+	def analyzeSeedSample(self, seedSampleInfo, timeString=None):
+		#Count quantities of seeds
+		totalSeedCount = len(seedSampleInfo) 
+		
+		positive = lambda x: False if x<0 else True
+		usableSeedCount = [positive(seedInfo[1]) for seedInfo in seedSampleInfo].count(True)
 		greenSeedCount = [self.isDGR(seedInfo[1]) for seedInfo in seedSampleInfo].count(True)
 		
 		dgrFrac = greenSeedCount/usableSeedCount
 		sampleGrade = self.gradeCanola(dgrFrac)
-		print("The grade of the Canola sample is: {} ({} DGR Seeds/{} Total Sample Seeds = {}% DGR).".format(sampleGrade,greenSeedCount,usableSeedCount,dgrFrac*100))
+		
+		analysisString = "\nThe grade of the Canola sample is: {} ({} DGR Seeds/{} Total Sample Seeds = {}% DGR).".format(sampleGrade,greenSeedCount,usableSeedCount,dgrFrac*100)
+		
 		if totalSeedCount != greenSeedCount:
-			print("{} seeds were unable to be analyzed, and were thus removed from the grading process.".format(totalSeedCount-usableSeedCount))
+			analysisString = analysisString + " {} seeds were unable to be analyzed, and were thus removed from the grading process.".format(totalSeedCount-usableSeedCount)
 	
+		print(analysisString)
+		
+		if timeString == None:
+			return analysisString
+		else:
+			return [analysisString, timeString]
+
 	#Determine if a seed is DGR or not based on its DGR pixel fraction
 	def isDGR(self, dgrFrac):
-		return dgrFrac > 0.5
+		return dgrFrac > self.dgrThreshold
 	
 	#Return the grade of canola based on fraction of dgr seeds.
 	def gradeCanola(self, dgrFrac):
@@ -341,4 +355,77 @@ class SeedSampleAnalyzer:
 			return 'No. 3'
 		else:
 			return 'No. 4'
+	
+	#Give a BGR confidence colour from light to dark based on the given dgr fraction
+	def confidenceColour(self, dgrFrac):
+		#Being close to the threshold decreases confidence
+		#Formula is: Conf=500(dgrFrac-threshold)**2, maxing out at 100
+		if dgrFrac < 0:
+			conf = 100
+		else:
+			conf = min([100, ((dgrFrac-self.dgrThreshold)**2)*500]) 
+		
+		#Translate confidence from 0 to 100 as brightness
+		#R = 0
+		#G = 255/100*Conf
+		#B = 48/100 *Conf
+		return [0.48*conf, 2.55*conf, 0]
+	
+	#Create composite images for display of relevant and dgr seeds in a sample
+	def createInfoImages(self, seedSampleInfo, rows, cols):
+		
+		#Overlay the grids
+		displaySeedSampleInfo = [(self.borderClassify(seedInfo[0],seedInfo[1]),seedInfo[1]) for seedInfo in seedSampleInfo]
+		
+		#Assemble the wm images, then the rel images, then the dgr images
+		wmImgList = [seedInfo[0][0] for seedInfo in displaySeedSampleInfo]
+		relImgList = [seedInfo[0][1] for seedInfo in displaySeedSampleInfo]
+		dgrImgList = [seedInfo[0][2] for seedInfo in displaySeedSampleInfo]
+		confImgList = [seedInfo[0][3] for seedInfo in displaySeedSampleInfo]
+
+		#Assemble each row
+		wmImgRows = []
+		relImgRows = []
+		dgrImgRows = []
+		confImgRows = []
+	
+		for i in range(rows):
+			wmImgRows.append(np.hstack(tuple(wmImgList[i*cols:(i+1)*cols])))
+			relImgRows.append(np.hstack(tuple(relImgList[i*cols:(i+1)*cols])))
+			dgrImgRows.append(np.hstack(tuple(dgrImgList[i*cols:(i+1)*cols])))
+			confImgRows.append(np.hstack(tuple(confImgList[i*cols:(i+1)*cols])))
+			
+		#Combine the rows into the full image 
+		wmImg = np.vstack(tuple(wmImgRows))
+		relImg = np.vstack(tuple(relImgRows))
+		dgrImg = np.vstack(tuple(dgrImgRows))
+		confImg = np.vstack(tuple(confImgRows))
+				
+		return [wmImg, relImg, dgrImg, confImg]
+		
+	#Mark each given image with an appropriately colored two-pixel thick border
+	def borderClassify(self, seedImgTrio, seedFrac):
+		
+		#Determine appropriate border color
+		if seedFrac < 0:
+			borderCol = self.gradingColourDict['NaN']
+		elif self.isDGR(seedFrac):
+			borderCol = self.gradingColourDict['DGR']
+		else:
+			borderCol = self.gradingColourDict['NotDGR']
+
+		seedBorderedList = [
+		self.iForm.drawBox(
+		self.iForm.drawBox(
+		self.iForm.drawBox(
+		self.iForm.drawBox(
+		self.iForm.drawBox(seedImg, (0,0), (seedImg.shape[1]-1,seedImg.shape[0]-1), overlayCol=borderCol),
+		(1,1), (seedImg.shape[1]-2,seedImg.shape[0]-2), overlayCol=borderCol), 
+		(2,2), (seedImg.shape[1]-3,seedImg.shape[0]-3), overlayCol=borderCol),
+		(3,3), (seedImg.shape[1]-4,seedImg.shape[0]-4), overlayCol=borderCol), 
+		(4,4), (seedImg.shape[1]-5,seedImg.shape[0]-5), overlayCol=borderCol) for seedImg in seedImgTrio]
+				
+		return tuple(seedBorderedList)
+		
+		
 			

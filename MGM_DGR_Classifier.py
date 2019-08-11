@@ -44,11 +44,11 @@ dgrCalibChip = iForm.averageImg(dgrCalibChip)											#Average out the calibra
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~Step 3: Classify Images~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-seedSampleInfo = sClas.classifySeedSample(seedSampleList, dgrCalibChip)					#Classify each seed and associate the data with each seed
+seedSampleInfo = sClas.classifySeedSample(seedSampleList, dgrCalibChip)[0]					#Classify each seed and associate the data with each seed
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~Step 4: Produce Analysis~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-sAnly.analyzeSeedSample(seedSampleInfo, seedSampleRows*seedSampleCols)					#Analyze the total data of the seed sample
+sAnly.analyzeSeedSample(seedSampleInfo)					#Analyze the total data of the seed sample
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

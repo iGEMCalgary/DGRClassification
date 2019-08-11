@@ -6,8 +6,9 @@ from matplotlib import pyplot as plt
 import queue
 import os
 
+
 #Provides basic utility functions for images
-class ImgUtility:	
+class ImgUtility:		
 	#Display the given image
 	def displayImg(self, img, cmap='bgr', title='', block=True):
 		plt.title(title)
@@ -76,6 +77,12 @@ class ImgUtility:
 	def convertLabToBGR(self, img):
 		return cv2.cvtColor(img, cv2.COLOR_Lab2BGR)
 	
+	#Convert a BGR image into a merged RGB array
+	def convertNpToRGBArr(self, img):
+		img = img.astype(np.uint8)
+		b,g,r = cv2.split(img)
+		return cv2.merge((r,g,b))
+	
 	#Crop an image. Can use either fractions or pixel values.
 	def cropImg(self, img, leftTopCorner, rightBotCorner):
 		if float(leftTopCorner[0]) < 1 or float(rightBotCorner[0]) < 1:
@@ -86,6 +93,11 @@ class ImgUtility:
 			leftTopCorner = (int(leftTopCorner[0]),int(leftTopCorner[1]))
 			rightBotCorner = (int(rightBotCorner[0]),int(rightBotCorner[1]))
 			return img[leftTopCorner[1]:rightBotCorner[1], leftTopCorner[0]:rightBotCorner[0]]
+	
+	#Resize an image.
+	def resizeImg(self, img, xF, yF):
+		resizedImg = cv2.resize(img, (int(xF),int(yF))).astype(np.uint8)
+		return resizedImg
 	
 	#Turn an image (copy) into a list of subimages, according to given grid parameters.
 	def gridPartitionImg(self, img, numRows, numCols):
@@ -101,6 +113,69 @@ class ImgUtility:
 			y = y+h
 
 		return cellImgList
+	
+	#Draw a (teal) rectangle on an image
+	#xRange and yRange are tuples of coordinates, inclusive
+	def drawLine(self, img, xRange, yRange, overlay):
+		tempImg = img.copy()
+		tempImg[yRange[0]:yRange[1]+1,xRange[0]:xRange[1]+1,:] = overlay[yRange[0]:yRange[1]+1,xRange[0]:xRange[1]+1,:]
+		return tempImg
+	
+	#Draw a (teal) grid on an image
+	def drawGrid(self, img, leftTopCornerP, rightBotCornerP, rows, cols, overlayCol=[255,255,0]):
+		#Create solid raw overlay 
+		overlay=np.full(img.shape, np.array(overlayCol), dtype=np.uint8)
+		imgTemp = img.copy()
+		
+		#Format coordinates if in fraction form
+		if leftTopCornerP[0]<1. or leftTopCornerP[1]<1. or rightBotCornerP[0]<1. or rightBotCornerP[1]<1.:
+			leftTopCorner = (int(leftTopCornerP[0]*img.shape[1]),int(leftTopCornerP[1]*img.shape[0]))
+			rightBotCorner = (int(rightBotCornerP[0]*img.shape[1]),int(rightBotCornerP[1]*img.shape[0]))
+		else:
+			leftTopCorner = leftTopCornerP.copy()
+			rightBotCorner = rightBotCornerP.copy()
+		
+		#Calculate seperations
+		rowSep = int((rightBotCorner[1] - leftTopCorner[1]) / rows)
+		colSep = int((rightBotCorner[0] - leftTopCorner[0]) / cols)
+		
+		#Draw rows if rows>1
+		if rows>1:
+			for i in range(rows+1):
+				imgTemp = self.drawLine(imgTemp,(leftTopCorner[0],rightBotCorner[0]),
+										   (leftTopCorner[1]+i*rowSep,leftTopCorner[1]+i*rowSep),overlay=overlay)
+			
+		#Draw columns if cols>1
+		if cols>1:
+			for i in range(cols+1):
+				imgTemp = self.drawLine(imgTemp,(leftTopCorner[0]+i*colSep,leftTopCorner[0]+i*colSep),
+										   (leftTopCorner[1],rightBotCorner[1]),overlay=overlay)
+		
+		return imgTemp
+	
+	#Draw a (teal) crop box on an image
+	def drawBox(self, img, leftTopCornerP, rightBotCornerP, overlayCol=[255,255,0]):
+		#Create solid raw overlay 
+		overlay=np.full(img.shape, np.array(overlayCol), dtype=np.uint8)
+		imgTemp = img.copy()
+		
+		#Format coordinates if in fraction form
+		if rightBotCornerP[0]<=1. and rightBotCornerP[1]<=1.:
+			leftTopCorner = (int(leftTopCornerP[0]*img.shape[1]),int(leftTopCornerP[1]*img.shape[0]))
+			rightBotCorner = (int(rightBotCornerP[0]*img.shape[1]),int(rightBotCornerP[1]*img.shape[0]))
+		else:
+			leftTopCorner = leftTopCornerP
+			rightBotCorner = rightBotCornerP
+		
+		#Draw upper and lower rows
+		imgTemp = self.drawLine(imgTemp,(leftTopCorner[0],rightBotCorner[0]),(leftTopCorner[1],leftTopCorner[1]),overlay=overlay)
+		imgTemp = self.drawLine(imgTemp,(leftTopCorner[0],rightBotCorner[0]),(rightBotCorner[1],rightBotCorner[1]),overlay=overlay)		
+		
+		#Draw left and right columns
+		imgTemp = self.drawLine(imgTemp,(leftTopCorner[0],leftTopCorner[0]),(leftTopCorner[1],rightBotCorner[1]),overlay=overlay)
+		imgTemp = self.drawLine(imgTemp,(rightBotCorner[0],rightBotCorner[0]),(leftTopCorner[1],rightBotCorner[1]),overlay=overlay)		
+		
+		return imgTemp
 		
 	#Turn an image (copy) into a solid image of averaged color
 	def averageImg(self, img):
@@ -231,28 +306,82 @@ class ImgUtility:
 		if img[i][j] >= threshold and img[i-1][j]<threshold and img[i+1][j]<threshold and img[i][j-1]<threshold and img[i][j+1]<threshold:
 			img[i][j] = 0
 			
+#Class for taking pictures
+class ImgCamera:		
+	#Constructor gets camera index, defaults to webcam if available
+	#If cameraIndex = None, attempts to search for the camera (webcam last)
+	def __init__(self, cameraIndex = 0):
+		#The default saved image is just a black 200x200 image.
+		self.memImg = np.zeros((200,200,3),dtype=np.uint8)
 		
-		
-		
-		
-		
+		if cameraIndex == None:
+			cameraIndexPossibleRange = 200
+			cameraFound = False 
+			for i in range(cameraIndexPossibleRange)[1:]:
+				if takePicture(custCamIndex=i, wantStatus=True):
+					print("Camera located at index {}".format(i))
+					self.cameraIndex = i
+					cameraFound = True
+			if not cameraFound:
+				self.cameraIndex = 0
+		else:
+			self.cameraIndex = cameraIndex
+	
+	#Take a picture using the camera and return the status or image
+	#Also save the most recent image.
+	def takePhoto(self, custCamIndex = None, wantStatus=False):
+		if custCamIndex == None:
+			camInd = self.cameraIndex
+		else:
+			camInd = custCamIndex
+			
+		camera = cv2.VideoCapture(camInd)
+		status, camImg = camera.read()
+		if wantStatus:
+			return status
+		elif status:
+			self.memImg = camImg
+			return camImg
+			
+	#Get the most recent image taken
+	def getMostRecentPhoto(self):
+		return self.memImg
 
 #Provides colour calibration for images
 class ImgCalibrator:
 	#Default constructor
-	def __init__(self):
+	def __init__(self, imgCamera, saveFolderPath, saveFilePath):
+		#Get image formatter
+		self.iForm = ImgUtility()
+		self.iCamr = imgCamera
+		
+		#Set the calibration image save path
+		self.saveFolderPath = saveFolderPath
+		self.saveFilePath = saveFilePath
+		
 		#Set the default offset of no change
 		self.offset = [0,0,0]
 		
 		#Record of true colour HSV values
 		self.colourDict = {'white':[0,0,255]}
 	
+	#Take and save a calibration photo
+	def takeCalibrationPhoto(self, img=[], leftTopCorner=(0.,0.), rightBotCorner=(1.,1.), filePath=None):
+		if filePath==None and len(img)==0:
+			calibPhotoOG = self.iCamr.takePhoto()
+		elif filePath != None:
+			calibPhotoOG = self.iForm.readImage(filePath)
+		else:
+			calibPhotoOG = img
+		calibPhoto = self.iForm.averageImg(self.iForm.cropImg(calibPhotoOG, leftTopCorner, rightBotCorner))
+		self.iForm.saveImageToFolder(self.saveFolderPath, self.saveFilePath, calibPhoto)
+		return (calibPhoto, calibPhotoOG)
+	
 	#Calibrate a colour in BGR to BGR
 	def calibrateCol(self, img, colour='white'):
 		#average the image for calibration use
-		iForm = ImgUtility()
-		aveImg = iForm.averageImg(img)
-		aveImg = iForm.convertBRGToHSV(aveImg)
+		aveImg = self.iForm.averageImg(img)
+		aveImg = self.iForm.convertBRGToHSV(aveImg)
 		
 		#Calculate the offset from the true value
 		self.offset = [self.colourDict[colour][i] - aveImg[0][0][i] for i in range(3)]
@@ -262,14 +391,13 @@ class ImgCalibrator:
 	def correctImg(self, img):
 		#Correct the img
 		offsetImg = np.full(img.shape, self.offset)
-		iForm = ImgUtility()
-		correctedImg = iForm.convertBRGToHSV(img) + offsetImg
+		correctedImg = self.iForm.convertBRGToHSV(img) + offsetImg
 		correctedImg = correctedImg.astype(np.uint8)
-		correctedImg = iForm.convertHSVToBGR(correctedImg)
+		correctedImg = self.iForm.convertHSVToBGR(correctedImg)
 		
 		#Normalize the img
 		limitImg = np.full(img.shape, self.colourDict['white'])
-		limitImg = iForm.convertHSVToBGR(limitImg.astype(np.uint8))
+		limitImg = self.iForm.convertHSVToBGR(limitImg.astype(np.uint8))
 		correctedImg = np.where(correctedImg<=255, correctedImg, limitImg)
 		
 		return correctedImg
