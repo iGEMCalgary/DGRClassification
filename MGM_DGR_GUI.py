@@ -3,6 +3,7 @@ import sys
 import os
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
+import math
 
 #Import GUI
 from tkinter import *
@@ -82,8 +83,10 @@ class GUI(Frame):
 		self.graBut = Button(buttonPanel, text='G', width=2, command=self.graButCmd).grid(row=5,column=2)
 		self.graLab = Label(buttonPanel, text="Grade Seed Sample", bg="Green").grid(row=5,column=0,columnspan=2)
 		
-		self.conBut = Button(buttonPanel, text='T', width=2, command=self.conButCmd).grid(row=6,column=2)
+		self.conBut = Button(buttonPanel, text='Tl', width=2, command=self.conButCmdL).grid(row=6,column=2)
+		self.conBut = Button(buttonPanel, text='Tr', width=2, command=self.conButCmdR).grid(row=6,column=3)		
 		self.conLab = Label(buttonPanel, text="Toggle Confidence", bg="Green").grid(row=6,column=0, columnspan=2)
+
 		
 		"""
 		Editable Settings:
@@ -175,7 +178,9 @@ class GUI(Frame):
 		#Text log
 		self.infLogTxt = Text(buttonPanel, bg="Grey", width=40, height=16)
 		self.infLogTxt.grid(row=20,column=0, columnspan=4)
-		self.infLogTxt.insert(END, "Welcome!\nFor reference, Red=DGR, Yellow=Fine, and Blue=Absent.\nAlso, The lighter the green, the higher the confidence.")
+		self.infLogTxt.insert(END, "Welcome!\nFor reference, Red=DGR, Yellow=Fine, and Blue=Absent.")
+		self.infLogTxt.insert(END, "\nAlso, The lighter the green, the higher the confidence.")
+		self.infLogTxt.insert(END, "\nAlso, use the keys 'q', 'w', 'e', 'r', and 't' to toggle analysis images once a grading is complete.")		
 		
 		self.infLogScr = Scrollbar(buttonPanel, command=self.infLogTxt.yview)
 		self.infLogScr.grid(row=20, column=4, sticky='nsew')
@@ -210,6 +215,7 @@ class GUI(Frame):
 		
 		self.calDisImgDim = (200,200)
 		self.calDisImg = convImg(blankImg(self.calDisImgDim))
+		self.useCalImg = blankImg(self.calDisImgDim)
 		self.calDis = Label(imagePanel, image=self.calDisImg, width=self.calDisImgDim[0], height=self.calDisImgDim[1])
 		self.calDis.grid(row=1,column=2, padx=5, pady=5)
 		self.calDisLab = Label(imagePanel, text= "Calibration Image").grid(row=0,column=2)
@@ -218,14 +224,28 @@ class GUI(Frame):
 		self.graDisImg = convImg(iForm.drawGrid(blankImg(self.graDisImgDim),(0,0),self.graDisImgDim,1,1))
 		self.sampleUpdated = False
 		self.graDis = Label(imagePanel, image=self.graDisImg, width=self.graDisImgDim[0], height=self.graDisImgDim[1])
-		self.graDis.grid(row=3,column=0, columnspan=3, padx=5, pady=5)
-		self.graDisLab = Label(imagePanel, text= "Seed Sample Image").grid(row=2,columnspan=3)
+		self.graDis.grid(row=3,column=0, columnspan=2, padx=5, pady=5)
+		self.graDisLab = Label(imagePanel, text= "Seed Sample Image").grid(row=2,columnspan=2)
 	
+		self.exaDisImgDim = (200,200)
+		self.exaDisImg = convImg(blankImg(self.exaDisImgDim))
+		self.exaDis = Label(imagePanel, image=self.exaDisImg, width=self.exaDisImgDim[0], height=self.exaDisImgDim[1])
+		self.exaDis.grid(row=3,column=2, padx=5, pady=5)
+		self.exaDisLab = Label(imagePanel, text= "Examined Seed").grid(row=2, column=2)
+		
+		
+		"""
+		Manage initial toggle img states.
+		Add key bindings for the toggle img state.
+		"""
 		self.toggleState=0
 		self.togImgWm = convImg(iForm.drawGrid(blankImg(self.graDisImgDim),(0,0),self.graDisImgDim,1,1))
 		self.togImgRel = convImg(iForm.drawGrid(blankImg(self.graDisImgDim),(0,0),self.graDisImgDim,1,1))
 		self.togImgDGR = convImg(iForm.drawGrid(blankImg(self.graDisImgDim),(0,0),self.graDisImgDim,1,1))
 		self.togImgConf = convImg(iForm.drawGrid(blankImg(self.graDisImgDim),(0,0),self.graDisImgDim,1,1))
+		
+		master.bind("<Key>", self.setToggleStatus)
+		self.graDis.bind("<Button-1>", self.getMousePress)
 	
 	#Update a label with the given image
 	def updateLabelImg(self, label, img):
@@ -305,9 +325,11 @@ class GUI(Frame):
 	#Browse for and display the preview image
 	def preButFilCmd(self):
 		print("preview browse button pressed.")
-		self.preButFilPath = browseImageFromComp(0)
-		preImg = iForm.readImage(self.preButFilPath)
-		self.updatePreviewImages(preImg)
+		tempPath = browseImageFromComp(0)
+		if len(tempPath) > 0:
+			self.preButFilPath = tempPath
+			preImg = iForm.readImage(self.preButFilPath)
+			self.updatePreviewImages(preImg)
 		
 	#Browse for and display the calibration image
 	def calButFilCmd(self):
@@ -324,15 +346,21 @@ class GUI(Frame):
 	#Browse for and display the seed sample image
 	def samButFilCmd(self):
 		print("sample browse button pressed")
-		self.preButFilPath = browseImageFromComp(0)
-		sampleImg = iForm.readImage(self.preButFilPath)
-		self.updateSampleImage(sampleImg)
+		tempPath = browseImageFromComp(0)
+		if len(tempPath) > 0:
+			self.preButFilPath = tempPath
+			sampleImg = iForm.readImage(self.preButFilPath)
+			self.updateSampleImage(sampleImg)
 		
 	#Grade and display the graded seed sample
 	def graButCmd(self):
 		#Update status
 		print("grading button pressed")
-
+		
+		#Stop if there is no calibration image.
+		if np.array_equal(self.useCalImg, blankImg(self.calDisImgDim)) or self.sampleUpdated==False:
+			return
+		
 		#Divide the whole image into the specified individual seed images
 		seedSampleList = iForm.gridPartitionImg(iForm.cropImg(self.rawSamImg, self.infSamCroDat[0], self.infSamCroDat[1]), self.infSamGriDat[0], self.infSamGriDat[1])	
 		
@@ -350,17 +378,56 @@ class GUI(Frame):
 		
 		self.toggleState=0
 	
-	#Toggle the graded seed sample visual information
-	def conButCmd(self):		
-		print("toggle button pressed")
+	#Toggle the graded seed sample visual information (Left)
+	def conButCmdL(self):		
+		print("left toggle button pressed")
 		
+		#Check if a seed sample has been graded yet.
+		if self.infClaStrVar.get() == "No grade yet.":
+			self.infLogTxt.insert(END, "\nNo seed sample graded yet.")
+			return
+		
+		#If the sample has been graded, toggle state/picture
+		self.toggleState = (self.toggleState-1)%5
+		
+		#Update the analysis state/picture
+		self.updateToggleImg()
+	
+	#Toggle the graded seed sample visual information (Right)
+	def conButCmdR(self):
+		print("right toggle button pressed")
+		
+		#Check if a seed sample has been graded yet.
+		if self.infClaStrVar.get() == "No grade yet.":
+			self.infLogTxt.insert(END, "\nNo seed sample graded yet.")
+			return
+		
+		#If the sample has been graded, toggle state/picture
+		self.toggleState = (self.toggleState+1)%5
+		
+		#Update the analysis state/picture
+		self.updateToggleImg()
+	
+	#Set the graded seed sample visual information based on the user key press
+	def setToggleStatus(self, event):
+		#print("Keyboard pressed: ", repr(event.char))
+			
 		#Check if a seed sample has been graded yet.
 		if self.infClaStrVar == "No grade yet.":
 			self.infLogTxt.insert(END, "No seed sample graded yet.")
 			return
 		
-		#If the sample has been graded, toggle state/picture
-		self.toggleState = (self.toggleState+1)%5
+		keyPress = str(repr(event.char))[1:2]
+		keyMapping = {'q':0,'w':1,'e':2,'r':3,'t':4}
+		
+		if keyPress in keyMapping.keys():
+			self.toggleState = keyMapping[keyPress]
+			
+			self.updateToggleImg()
+		
+		
+	#Update the analysis state/picture
+	def updateToggleImg(self):
 		if self.toggleState==0:
 			self.updateSampleImage(self.rawSamImg)
 		elif self.toggleState==1:
@@ -371,17 +438,20 @@ class GUI(Frame):
 			self.updateLabelImg(self.graDis, convImg(iForm.resizeImg(self.togImgDGR, self.graDisImgDim[0], self.graDisImgDim[1])))
 		elif self.toggleState==4:
 			self.updateLabelImg(self.graDis, convImg(iForm.resizeImg(self.togImgConf, self.graDisImgDim[0], self.graDisImgDim[1])))
-		
+	
 	#Update the preview calibration crop settings and image
 	def infCalCroCmd(self):
 		
 		#Check the validity of crop parameters
 		errorMsg = "\nError: Calibration Crop Parameters must be numbers in the range of [0.0,1.0]."
+		
+		getCoordinateLow = lambda x: float(x) if len(x)>0 else 0.
+		getCoordinateHigh = lambda x: float(x) if len(x)>0 else 1.
 		try:
-			newX1 = float(self.infCalCroX1StrVar.get())
-			newY1 = float(self.infCalCroY1StrVar.get())
-			newX2 = float(self.infCalCroX2StrVar.get())
-			newY2 = float(self.infCalCroY2StrVar.get())
+			newX1 = getCoordinateLow(self.infCalCroX1StrVar.get())
+			newY1 = getCoordinateLow(self.infCalCroY1StrVar.get())
+			newX2 = getCoordinateHigh(self.infCalCroX2StrVar.get())
+			newY2 = getCoordinateHigh(self.infCalCroY2StrVar.get())
 			if newX1<0. or newX1>1. or newY1<0. or newY1>1. or newX2<0. or newX2>1. or newY2<0. or newY2>1.:
 				self.infLogTxt.insert(END, errorMsg)
 				return
@@ -403,11 +473,13 @@ class GUI(Frame):
 	def infSamCroCmd(self):
 		#Check the validity of crop parameters
 		errorMsg = "\nError: Seed Sample Crop Parameters must be numbers in the range of [0.0,1.0]."
+		getCoordinateLow = lambda x: float(x) if len(x)>0 else 0.
+		getCoordinateHigh = lambda x: float(x) if len(x)>0 else 1.
 		try:
-			newX1 = float(self.infSamCroX1StrVar.get())
-			newY1 = float(self.infSamCroY1StrVar.get())
-			newX2 = float(self.infSamCroX2StrVar.get())
-			newY2 = float(self.infSamCroY2StrVar.get())
+			newX1 = getCoordinateLow(self.infSamCroX1StrVar.get())
+			newY1 = getCoordinateLow(self.infSamCroY1StrVar.get())
+			newX2 = getCoordinateHigh(self.infSamCroX2StrVar.get())
+			newY2 = getCoordinateHigh(self.infSamCroY2StrVar.get())
 			if newX1<0. or newX1>1. or newY1<0. or newY1>1. or newX2<0. or newX2>1. or newY2<0. or newY2>1.:
 				self.infLogTxt.insert(END, errorMsg)
 				return
@@ -424,9 +496,10 @@ class GUI(Frame):
 	def infSamGriCmd(self):
 		#Check the validity of crop parameters
 		errorMsg = "\nError: Seed Sample Grid Parameters must be numbers greater than or equal to 1."
+		getGrid = lambda x: int(x) if len(x)>0 else 1
 		try:
-			newRow = int(self.infSamGriRowStrVar.get())
-			newCol = int(self.infSamGriColStrVar.get())
+			newRow = getGrid(self.infSamGriRowStrVar.get())
+			newCol = getGrid(self.infSamGriColStrVar.get())
 
 			if newRow < 1 or newCol < 1:
 				self.infLogTxt.insert(END, errorMsg)
@@ -438,6 +511,44 @@ class GUI(Frame):
 		#If the parameters are valid, update them and the images 
 		self.infSamGriDat = (newRow,newCol)
 		self.updateSampleImage(self.rawSamImg)
+	
+	#Get mouse press location and update the seed sample analysis image.
+	def getMousePress(self, event):
+		print ("mouse clicked at", event.x, event.y)
+		#Stop if the sample has not been graded yet.
+		if self.infClaStrVar.get() == "No grade yet.":
+			self.infLogTxt.insert(END, "\nNo seed sample graded yet.")
+			return
+		
+		#Determine the coordinates of the display image grid cell at the click location
+		#Also determine the image currently being displayed.
+		if self.toggleState==0:
+			tempImg = self.rawSamImg
+		elif self.toggleState==1:
+			tempImg = self.togImgWm
+		elif self.toggleState==2:
+			tempImg = self.togImgRel
+		elif self.toggleState==3:
+			tempImg = self.togImgDGR
+		elif self.toggleState==4:
+			tempImg = self.togImgConf
+		
+		#Determine the column of the cell
+		clickXFrac = event.x/self.graDisImgDim[0]
+		tempX1 = math.floor(clickXFrac*self.infSamGriDat[1])/self.infSamGriDat[1]
+		tempX2 = math.ceil(clickXFrac*self.infSamGriDat[1])/self.infSamGriDat[1]
+		
+		#Determine the row of the cell 
+		clickYFrac = event.y/self.graDisImgDim[1]
+		tempY1 = math.floor(clickYFrac*self.infSamGriDat[0])/self.infSamGriDat[0]
+		tempY2 = math.ceil(clickYFrac*self.infSamGriDat[0])/self.infSamGriDat[0]
+		
+		#Appropriately crop the image
+		self.exaDisImg = iForm.cropImg(tempImg, (tempX1,tempY1), (tempX2,tempY2))
+		
+		#Update the examination image display
+		self.updateLabelImg(self.exaDis, convImg(iForm.resizeImg(self.exaDisImg, self.exaDisImgDim[0], self.exaDisImgDim[1])))
+		
 		
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

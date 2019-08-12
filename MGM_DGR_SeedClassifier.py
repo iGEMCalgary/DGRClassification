@@ -328,7 +328,7 @@ class SeedSampleAnalyzer:
 		dgrFrac = greenSeedCount/usableSeedCount
 		sampleGrade = self.gradeCanola(dgrFrac)
 		
-		analysisString = "\nThe grade of the Canola sample is: {} ({} DGR Seeds/{} Total Sample Seeds = {}% DGR).".format(sampleGrade,greenSeedCount,usableSeedCount,dgrFrac*100)
+		analysisString = "\nThe grade of the Canola sample is: {} ({} DGR Seeds/{} Total Sample Seeds = {:5.3f}% DGR).".format(sampleGrade,greenSeedCount,usableSeedCount,dgrFrac*100)
 		
 		if totalSeedCount != greenSeedCount:
 			analysisString = analysisString + " {} seeds were unable to be analyzed, and were thus removed from the grading process.".format(totalSeedCount-usableSeedCount)
