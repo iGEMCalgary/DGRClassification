@@ -46,13 +46,13 @@ class SeedClassifier:
 			seedImg, seedImgDisplayDG, seedImgDGR = self.maskDGRFromSmearWithLabDist(seedImg, dgrColChip)
 			
 			#Compute seed info
-			seedFrac = self.sAnly.gradeSeed(seedImgFul, seedImgRel, seedImgDGR)
+			seedFrac, seedAreas = self.sAnly.gradeSeed(seedImgFul, seedImgRel, seedImgDGR)
 			if seedFrac != 'NaN':
-				seedImgDisplayConf = np.full(seedImg.shape, self.sAnly.confidenceColour(seedFrac))
-				seedInfo.append(((seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), seedFrac))
+				seedImgDisplayConf = np.full(seedImg.shape, self.sAnly.confidenceColour(seedFrac, seedAreas))
+				seedInfo.append(((seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), seedFrac, seedAreas))
 			else:
-				seedImgDisplayConf = np.full(seedImg.shape, self.sAnly.confidenceColour(-1))
-				seedInfo.append(((seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), -1))
+				seedImgDisplayConf = np.full(seedImg.shape, self.sAnly.confidenceColour(-1, seedAreas))
+				seedInfo.append(((seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), -1, seedAreas))
 			
 			#Approximately 86ms
 			print("Seed analyzed. " + self.timeEndTime(seedClassTime))
@@ -236,6 +236,11 @@ class SeedClassifier:
 		if LDiff > 0:
 			totalPenalty = totalPenalty + 3.6*(LDiff**2)
 		
+		#Being too dark also incurs a penalty at L < 5
+		#P = (-L+5)**2
+		if pxl1[0] < 5:	
+			totalPenalty = totalPenalty + 2*(-pxl1[0]+5)**2
+		
 		#Color penalty maxes out at distance d=20 from ab region
 		#P = rate*D = (90/d)*(limit-real)
 		#a region is [-128, -0.42*L]
@@ -295,7 +300,7 @@ class SeedSampleAnalyzer:
 		imgNonZero = lambda x: np.count_nonzero(np.mean(x, axis=2))
 		areaFul = imgNonZero(seedImgFul)
 		areaRel = imgNonZero(seedImgRel)
-		areaDGR = imgNonZero(seedImgDGR)
+		areaDGR = imgNonZero(seedImgDGR)	
 		
 		analysisString = "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 		
@@ -312,9 +317,9 @@ class SeedSampleAnalyzer:
 			analysisString = analysisString + "No seed smear detected."
 			analysisString = analysisString + "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 			print(analysisString)
-			return 'NaN'
+			return ['NaN', (areaFul, areaRel, areaDGR)]
 		
-		return dgrFrac
+		return [dgrFrac, (areaFul, areaRel, areaDGR)]
 		
 	#Analyze a full sample
 	def analyzeSeedSample(self, seedSampleInfo, timeString=None):
@@ -357,14 +362,19 @@ class SeedSampleAnalyzer:
 			return 'No. 4'
 	
 	#Give a BGR confidence colour from light to dark based on the given dgr fraction
-	def confidenceColour(self, dgrFrac):
+	def confidenceColour(self, dgrFrac, areas):
 		#Being close to the threshold decreases confidence
 		#Formula is: Conf=500(dgrFrac-threshold)**2, maxing out at 100
+		#Lower confidence comes from very low smear and dgr values
+		#Formula is: Conf -= (areaDGR/areaRel)*10*np.log(-areaRel+40)+40
 		if dgrFrac < 0:
 			conf = 100
 		else:
 			conf = min([100, ((dgrFrac-self.dgrThreshold)**2)*500]) 
-		
+			if areas[1] < 40:
+				negConf = max([0, (10*np.log(-areas[1]+40)+40)*(areas[2]/areas[1])])
+				conf = max([0, conf-negConf])
+			
 		#Translate confidence from 0 to 100 as brightness
 		#R = 0
 		#G = 255/100*Conf
