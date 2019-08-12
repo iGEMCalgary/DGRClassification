@@ -586,7 +586,9 @@ class GUI(Frame):
 		
 		self.exaAnaTxt.config(state=NORMAL)
 		self.exaAnaTxt.delete(0., END)
-		seedAreaText = "Seed Pixel Area: " + str(areaFul)
+		seedAreaText = "Row: " + str(row+1)
+		seedAreaText = seedAreaText + "\nColumn: " + str(col+1)
+		seedAreaText = seedAreaText + "\nSeed Pixel Area: " + str(areaFul)
 		seedAreaText = seedAreaText + "\nSmear Pixel Area: " + str(areaRel)
 		seedAreaText = seedAreaText + "\nDGR Pixel Area: " + str(areaDGR)		
 		seedAreaText = seedAreaText + "\nSeed DGR %: " + dgrFracStr
