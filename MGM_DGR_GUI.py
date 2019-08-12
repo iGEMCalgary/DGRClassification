@@ -523,7 +523,7 @@ class GUI(Frame):
 		#Determine the coordinates of the display image grid cell at the click location
 		#Also determine the image currently being displayed.
 		if self.toggleState==0:
-			tempImg = self.rawSamImg
+			tempImg = iForm.cropImg(self.rawSamImg, self.infSamCroDat[0], self.infSamCroDat[1])
 		elif self.toggleState==1:
 			tempImg = self.togImgWm
 		elif self.toggleState==2:
