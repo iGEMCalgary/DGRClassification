@@ -1,0 +1,24 @@
+
+~~~~~~~~~~~~~Canola Seed Grading~~~~~~~~~~~~~
+Date: 		Tue Aug 20 15:31:35 2019
+Grade:		No. 4 
+
+Distinctly Green Sample %:	62.500%
+Distinctly Green Seeds:		5
+Used Seed Sample Size:		8
+Initial Seed Sample Size: 	9
+Discarded Seeds:		1
+Unaltered Grade:		True
+
+Calibration Image Used:		C:/Users/jakel/OneDrive/Documents/GitHub/DGRClassification/DGRClassification/CalibrationImages/DGRChip.png
+Seed Sample Image Used:		C:/Users/jakel/OneDrive/Documents/GitHub/DGRClassification/DGRClassification/Images/grid2.png
+Time to Grade:			Time: 0 minutes, 3.525 seconds.
+
+D = Distinctly Green, G = Not Distinctly Green, N = Discarded Seed
+		Col
+		1	2	3
+Row 	1	D	G	G
+	2	D	D	D
+	3	D	G	G
+	
+		

@@ -32,8 +32,8 @@ startOffset =		progVariables[4]
 #~~~~~~~~~~~~~~~~~~~~~~~~Step 1: Format Input Images~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 seedSampleImg = iForm.readLatestImageFromFolder(seedFolderPath, startOffset=startOffset)#Read the sample image with the multiple seeds
 seedSampleList = iForm.gridPartitionImg(seedSampleImg, seedSampleRows, seedSampleCols)	#Divide the whole image into the specified individual seed images
-#for seeds in seedSampleList:
-#	iForm.displayImg(seeds)
+for seeds in seedSampleList:
+	iForm.displayImg(seeds)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 

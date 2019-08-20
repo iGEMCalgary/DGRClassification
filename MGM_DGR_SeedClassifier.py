@@ -49,10 +49,10 @@ class SeedClassifier:
 			seedFrac, seedAreas = self.sAnly.gradeSeed(seedImgFul, seedImgRel, seedImgDGR)
 			if seedFrac != 'NaN':
 				seedImgDisplayConf = np.full(seedImg.shape, self.sAnly.confidenceColour(seedFrac, seedAreas))
-				seedInfo.append(((seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), seedFrac, seedAreas))
+				seedInfo.append([(seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), seedFrac, seedAreas])
 			else:
 				seedImgDisplayConf = np.full(seedImg.shape, self.sAnly.confidenceColour(-1, seedAreas))
-				seedInfo.append(((seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), -1, seedAreas))
+				seedInfo.append([(seedImgDisplayWM, seedImgDisplaySI, seedImgDisplayDG, seedImgDisplayConf), -1, seedAreas])
 			
 			#Approximately 86ms
 			print("Seed analyzed. " + self.timeEndTime(seedClassTime))
@@ -290,7 +290,8 @@ class SeedSampleAnalyzer:
 	#Default constructor
 	def __init__(self):
 		self.dgrThreshold = 0.5
-		self.gradingColourDict = {'NotDGR':[0,255,255],'DGR':[0,0,255],'NaN':[255,0,0]}
+		self.gradingColourDict = {'NotDGR':[0,255,255],'DGR':[0,0,255],'NaN':[255,0,0],
+								  'cust_NotDGR':[19,128,128],'cust_DGR':[19,19,128],'cust_NaN':[128,19,19]}
 		self.iForm = ImgUtility()
 		
 	#Grade an individual seed
@@ -325,9 +326,8 @@ class SeedSampleAnalyzer:
 	def analyzeSeedSample(self, seedSampleInfo, timeString=None):
 		#Count quantities of seeds
 		totalSeedCount = len(seedSampleInfo) 
-		
-		positive = lambda x: False if x<0 else True
-		usableSeedCount = [positive(seedInfo[1]) for seedInfo in seedSampleInfo].count(True)
+			
+		usableSeedCount = [self.positive(seedInfo[1]) for seedInfo in seedSampleInfo].count(True)
 		greenSeedCount = [self.isDGR(seedInfo[1]) for seedInfo in seedSampleInfo].count(True)
 		
 		dgrFrac = greenSeedCount/usableSeedCount
@@ -336,19 +336,37 @@ class SeedSampleAnalyzer:
 		analysisString = "\nThe grade of the Canola sample is: {} ({} DGR Seeds/{} Total Sample Seeds = {:5.3f}% DGR).".format(sampleGrade,greenSeedCount,usableSeedCount,dgrFrac*100)
 		
 		if totalSeedCount != greenSeedCount:
-			analysisString = analysisString + " {} seeds were unable to be analyzed, and were thus removed from the grading process.".format(totalSeedCount-usableSeedCount)
+			analysisString = analysisString + " {} seed(s) were unable to be analyzed, and were thus removed from the grading process.".format(totalSeedCount-usableSeedCount)
 	
 		print(analysisString)
 		
 		if timeString == None:
-			return analysisString
+			return [analysisString]
 		else:
 			return [analysisString, timeString]
 
+	#Determine if a seed is usable or not
+	def positive(self, dgrFrac):
+		if dgrFrac == 'cust_DGR':
+			return True
+		elif dgrFrac == 'cust_NotDGR':
+			return True 
+		elif dgrFrac == 'cust_NaN':
+			return False
+		else:
+			return dgrFrac >= 0
+
 	#Determine if a seed is DGR or not based on its DGR pixel fraction
 	def isDGR(self, dgrFrac):
-		return dgrFrac > self.dgrThreshold
-	
+		if dgrFrac == 'cust_DGR':
+			return True
+		elif dgrFrac == 'cust_NotDGR':
+			return False 
+		elif dgrFrac == 'cust_NaN':
+			return False
+		else:
+			return dgrFrac > self.dgrThreshold
+
 	#Return the grade of canola based on fraction of dgr seeds.
 	def gradeCanola(self, dgrFrac):
 		#No. 1 < 2%, No. 2 < 6%, No. 3 < 20%
@@ -415,9 +433,10 @@ class SeedSampleAnalyzer:
 		
 	#Mark each given image with an appropriately colored two-pixel thick border
 	def borderClassify(self, seedImgTrio, seedFrac):
-		
 		#Determine appropriate border color
-		if seedFrac < 0:
+		if seedFrac in self.gradingColourDict:
+			borderCol = self.gradingColourDict[seedFrac]
+		elif seedFrac < 0:
 			borderCol = self.gradingColourDict['NaN']
 		elif self.isDGR(seedFrac):
 			borderCol = self.gradingColourDict['DGR']

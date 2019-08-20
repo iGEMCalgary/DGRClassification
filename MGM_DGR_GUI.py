@@ -4,6 +4,9 @@ import os
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 import math
+import copy
+import re
+import time 
 
 #Import GUI
 from tkinter import *
@@ -22,7 +25,7 @@ from MGM_DGR_SeedClassifier import SeedSampleAnalyzer
 #Other classes 
 iForm = ImgUtility()
 iCamr = ImgCamera(cameraIndex=0)
-iCali = ImgCalibrator(iCamr, "CalibrationImages", "guiCalibPhotoTest.png")
+iCali = ImgCalibrator(iCamr, "CalibrationImages", "guiCalibrationPhoto.png")
 sClas = SeedClassifier()
 sAnly = SeedSampleAnalyzer()
 
@@ -84,7 +87,8 @@ class GUI(Frame):
 		self.samBut = Button(buttonPanel, text='Sb', width=2, command=self.samButFilCmd, bg="#1982C4").grid(row=4,column=3)
 		self.samLab = Label(buttonPanel, text="Take Seed Sample Photo", bg="#8ac926").grid(sticky='E', row=4,column=0,columnspan=2)
 		
-		self.graBut = Button(buttonPanel, text='G', width=2, command=self.graButCmd, bg="#1982C4").grid(row=5,column=2, columnspan=2)
+		self.graBut = Button(buttonPanel, text='Grade', width=4, command=self.graButCmd, bg="#1982C4").grid(row=5,column=2)
+		self.graButSav = Button(buttonPanel, text='Save', width=4, command=self.graButSavCmd, bg="#1982C4").grid(row=5,column=3)
 		self.graLab = Label(buttonPanel, text="Grade Seed Sample", bg="#8ac926").grid(sticky='E', row=5,column=0,columnspan=2)
 		
 		self.conBut = Button(buttonPanel, text='Tl', width=2, command=self.conButCmdL, bg="#1982C4").grid(sticky='E',row=6,column=2)
@@ -174,13 +178,13 @@ class GUI(Frame):
 		self.infClaLabVar = Label(buttonPanel, textvariable=self.infClaStrVar, bg="#FFCA3A").grid(sticky='W',row=18,column=2, columnspan=2)
 		self.infClaLab = Label(buttonPanel, text="Grade of Sample:", bg="#8ac926").grid(sticky='E',row=18,column=0, columnspan=2)
 		
-		self.infLodStrVar = StringVar()
-		self.infLodStrVar.set("No grading completed.")
-		self.infLodLabVar = Label(buttonPanel, textvariable=self.infLodStrVar, bg="#FFCA3A").grid(sticky='W',row=19,column=2, columnspan=2)
-		self.infLodLab = Label(buttonPanel, text="Grading Timing:", bg="#8ac926").grid(sticky='E',row=19,column=0, columnspan=2)
+		self.infLogStrVar = StringVar()
+		self.infLogStrVar.set("No grading completed.")
+		self.infLogLabVar = Label(buttonPanel, textvariable=self.infLogStrVar, bg="#FFCA3A").grid(sticky='W',row=19,column=2, columnspan=2)
+		self.infLogLab = Label(buttonPanel, text="Grading Timing:", bg="#8ac926").grid(sticky='E',row=19,column=0, columnspan=2)
 		
 		#Text log
-		self.infLogTxt = Text(buttonPanel, bg="Grey", width=40, height=16)
+		self.infLogTxt = Text(buttonPanel, bg="Grey", width=40, height=16, wrap=WORD)
 		self.infLogTxt.grid(row=20,column=0, columnspan=4)
 		self.infLogTxt.insert(END, "Welcome!\nFor reference, Red=DGR, Yellow=Fine, and Blue=Absent.")
 		self.infLogTxt.insert(END, "\nAlso, The lighter the green, the higher the confidence.")
@@ -265,8 +269,19 @@ class GUI(Frame):
 		self.togImgDGR = convImg(iForm.drawGrid(blankImg(self.graDisImgDim),(0,0),self.graDisImgDim,1,1))
 		self.togImgConf = convImg(iForm.drawGrid(blankImg(self.graDisImgDim),(0,0),self.graDisImgDim,1,1))
 		
+		"""
+		Manage click bindings for seed examination.
+		"""
 		master.bind("<Key>", self.setToggleStatus)
-		self.graDis.bind("<Button-1>", self.getMousePress)
+		self.graDis.bind("<Button-1>", self.getMousePressLeft)
+		self.graDis.bind("<Button-3>", self.getMousePressRight)
+		
+		self.popup = Menu(master, tearoff=0)
+		self.popup.add_command(label="Mark as DGR", command=self.setSeedCustDGR)
+		self.popup.add_command(label="Mark as not DGR", command=self.setSeedCustNotDGR)
+		self.popup.add_command(label="Mark as NaN", command=self.setSeedCustNaN)
+		self.popup.add_separator()
+		self.popup.add_command(label="Reset Seed Grade", command=self.resetSeedGrade)
 	
 	#Update a label with the given image
 	def updateLabelImg(self, label, img):
@@ -330,7 +345,7 @@ class GUI(Frame):
 	def calButCmd(self):
 		#Set calibration image
 		print("calibration button pressed")
-		ogCalibrationImg, ogOGImg = iCali.takeCalibrationPhoto(leftTopCorner=self.infCalCroDat[0], rightBotCorner=self.infCalCroDat[1])
+		ogCalibrationImg, ogOGImg, self.calibFilePath = iCali.takeCalibrationPhoto(leftTopCorner=self.infCalCroDat[0], rightBotCorner=self.infCalCroDat[1])
 		self.rawCalImg = ogOGImg
 		self.useCalImg = ogCalibrationImg
 		self.updateCalibImage(ogOGImg, ogCalibrationImg)
@@ -338,9 +353,18 @@ class GUI(Frame):
 		
 	#Take and display the seed sample image
 	def samButCmd(self):
-		#Set calibration image
-		print("calibration button pressed")
+		#Set sample image
+		print("seed sample button pressed")
 		self.newCamImg = convImg(iCamr.takePhoto())
+				
+		#Save the image
+		i = 0
+		while os.path.exists(os.path.join("Images", "guiSeedSamplePhoto_{}.png".format(i))):
+			i = i + 1
+		self.sampleFilePath = os.path.join("Images", "guiSeedSamplePhoto_{}.png".format(i))
+		iForm.saveImageToFolder("Images", "guiSeedSamplePhoto_{}.png".format(i), iCamr.getMostRecentPhoto())
+		
+		#Update the sample seed images
 		self.updateSampleImage(iCamr.getMostRecentPhoto())
 		
 	#Browse for and display the preview image
@@ -356,8 +380,9 @@ class GUI(Frame):
 	def calButFilCmd(self):
 		print("calibration browse button pressed")
 		self.preButFilPath = browseImageFromComp(0)
+		self.calibFilePath = self.preButFilPath
 		if len(self.preButFilPath) > 0:
-			ogCalibrationImg, ogOGImg = iCali.takeCalibrationPhoto(leftTopCorner=self.infCalCroDat[0], 
+			ogCalibrationImg, ogOGImg, temp = iCali.takeCalibrationPhoto(leftTopCorner=self.infCalCroDat[0], 
 										rightBotCorner=self.infCalCroDat[1], filePath=self.preButFilPath)	
 			self.rawCalImg=ogOGImg
 			self.useCalImg = ogCalibrationImg
@@ -368,6 +393,7 @@ class GUI(Frame):
 	def samButFilCmd(self):
 		print("sample browse button pressed")
 		tempPath = browseImageFromComp(0)
+		self.sampleFilePath = tempPath
 		if len(tempPath) > 0:
 			self.preButFilPath = tempPath
 			sampleImg = iForm.readImage(self.preButFilPath)
@@ -383,22 +409,115 @@ class GUI(Frame):
 			return
 		
 		#Divide the whole image into the specified individual seed images
-		seedSampleList = iForm.gridPartitionImg(iForm.cropImg(self.rawSamImg, self.infSamCroDat[0], self.infSamCroDat[1]), self.infSamGriDat[0], self.infSamGriDat[1])	
+		self.seedSampleList = iForm.gridPartitionImg(iForm.cropImg(self.rawSamImg, self.infSamCroDat[0], self.infSamCroDat[1]), self.infSamGriDat[0], self.infSamGriDat[1])	
 		
 		#Classify each seed and associate the data with each seed
-		seedSampleInfo, timeStr = sClas.classifySeedSample(seedSampleList, self.useCalImg)		
-		self.seedSampleAreas = [seedInfo[2] for seedInfo in seedSampleInfo]
+		self.seedSampleInfo, timeStr = sClas.classifySeedSample(self.seedSampleList, self.useCalImg)	
+		self.seedSampleAreas = [seedInfo[2] for seedInfo in self.seedSampleInfo]
+		self.seedSampleInfoMod = copy.deepcopy(self.seedSampleInfo)
 		
+		self.printGradeToggleImgs(self.seedSampleInfo, timeStr)
+	
+	#Save the current grading to a text report.
+	def graButSavCmd(self):
+		"""
+		Example Report Format:
+		~~~~~~~~~~~~~Canola Seed Grading~~~~~~~~~~~~~
+		Date: 		Tue Aug 16 21:30:00 1988 (en_US)
+		Grade:		No. 1
+		
+		Distinctly Green Sample %:	0.606%
+		Distinctly Green Seeds:		3
+		Used Seed Sample Size:		495
+		Initial Seed Sample Size: 	500
+		Discarded Seeds:			5
+		Unaltered Grade:			Yes
+		
+		Calibration Image Used:		CalibrationImages\guiCalibrationPhoto.png
+		Seed Sample Image Used:		Images\guiSeedSamplePhoto_0.png
+		
+		D = Distinctly Green, G = Not Distinctly Green, N = Discarded Seed
+					Col
+					1	2	3	4	...
+		Row 	1	D	G	G 	G
+				2	G	N	G	G
+				3	G 	G 	G	G
+				...
+		"""
+		#Parse variables
+		aNums = re.findall(r'\d+', self.seedAnalysisString[0])
+		dgrPercent = float(aNums[3])+float(aNums[4])/1000
+		discardQuant = aNums[5] if len(aNums)>5 else 0
+		gradeUnaltered = True
+		for i in self.seedSampleInfoMod:
+			if str(self.seedSampleInfoMod[1])[:5] =='cust_':
+				gradeUnaltered = False 
+				break
+		cols=''
+		for col in range(self.infSamGriDat[1]):
+			cols = cols+'	'+str(col+1)
+		
+		rows=''
+		for row in range(self.infSamGriDat[0]):
+			rows = rows + str(row+1)
+			for col in range(self.infSamGriDat[1]):
+				rows = rows + '	' + self.dgrToString(self.seedSampleInfoMod[row*self.infSamGriDat[1]+col][1], char=True, asterisk=True)
+			rows = rows + '\n	'
+		
+		report = """
+~~~~~~~~~~~~~Canola Seed Grading~~~~~~~~~~~~~
+Date: 		{}
+Grade:		{}
+
+Distinctly Green Sample %:	{:5.3f}%
+Distinctly Green Seeds:		{}
+Used Seed Sample Size:		{}
+Initial Seed Sample Size: 	{}
+Discarded Seeds:		{}
+Unaltered Grade:		{}
+
+Calibration Image Used:		{}
+Seed Sample Image Used:		{}
+Time to Grade:			{}
+
+D = Distinctly Green, G = Not Distinctly Green, N = Discarded Seed
+		Col
+	{}
+Row 	{}
+		""".format(
+			time.strftime("%c"), self.infClaStrVar.get(), 
+			dgrPercent, aNums[1], aNums[2], int(aNums[2])+int(discardQuant), discardQuant, gradeUnaltered,
+			self.calibFilePath, self.sampleFilePath, self.infLogStrVar.get(),
+			cols, rows)
+		
+		#Get the current date
+		reportDate = time.strftime("%Y_%b_%d_%H_%M_%S")
+		
+		#Get the content of the report
+		
+		#Get the file name of the report
+		reportFilename = r"Canola_Grading_{}.txt".format(reportDate)
+		
+		#Save the report as a text file
+		reportFile = open(os.path.join("Reports", reportFilename), 'w')
+		reportFile.write(report)
+		self.infLogTxt.insert(END,"\nReport saved.")
+		
+	#Print the grade results and set the toggle images
+	def printGradeToggleImgs(self, seedSampleInfo, timeStr=None, toggleState=0):
 		#Analyze the total data of the seed sample
 		seedAnalysisString = sAnly.analyzeSeedSample(seedSampleInfo, timeStr)
 		self.infLogTxt.insert(END, seedAnalysisString[0])
-		self.infClaStrVar.set(seedAnalysisString[0][35:42])
-		self.infLodStrVar.set(seedAnalysisString[1])
+		self.infClaStrVar.set(seedAnalysisString[0][36:42])
+		if len(seedAnalysisString) > 1:
+			self.infLogStrVar.set(seedAnalysisString[1])
+		self.seedAnalysisString = seedAnalysisString
 		
 		#Create images for toggling
 		self.togImgWm, self.togImgRel, self.togImgDGR, self.togImgConf = sAnly.createInfoImages(seedSampleInfo, self.infSamGriDat[0], self.infSamGriDat[1])
 		self.graDisLabStrVar.set("Raw Image")
-		self.toggleState=0
+		self.toggleState=toggleState
+		self.updateToggleImg()
 	
 	#Toggle the graded seed sample visual information (Left)
 	def conButCmdL(self):		
@@ -447,7 +566,6 @@ class GUI(Frame):
 			
 			self.updateToggleImg()
 		
-		
 	#Update the analysis state/picture
 	def updateToggleImg(self):
 		if self.toggleState==0:
@@ -489,7 +607,7 @@ class GUI(Frame):
 		#If the parameters are valid, update them and the images 
 		self.infCalCroDat = ((newX1,newY1),(newX2,newY2))
 				
-		ogCalibrationImg, ogOGImg = iCali.takeCalibrationPhoto(img=self.rawCalImg,leftTopCorner=self.infCalCroDat[0], 
+		ogCalibrationImg, ogOGImg, self.calibFilePath = iCali.takeCalibrationPhoto(img=self.rawCalImg,leftTopCorner=self.infCalCroDat[0], 
 															   rightBotCorner=self.infCalCroDat[1])
 		self.useCalImg = ogCalibrationImg
 		self.updateCalibImage(ogOGImg, ogCalibrationImg)
@@ -539,8 +657,24 @@ class GUI(Frame):
 		self.infSamGriDat = (newRow,newCol)
 		self.updateSampleImage(self.rawSamImg)
 	
+	#Get the row and column of a mouse click on the sample analysis image
+	def getClickRowAndCol(self, event):
+		#Determine the column of the cell
+		clickXFrac = event.x/self.graDisImgDim[0]
+		tempX1 = math.floor(clickXFrac*self.infSamGriDat[1])/self.infSamGriDat[1]
+		tempX2 = math.ceil(clickXFrac*self.infSamGriDat[1])/self.infSamGriDat[1]
+		col = min([int(tempX1*self.infSamGriDat[1]),self.infSamGriDat[1]-1])
+		
+		#Determine the row of the cell 
+		clickYFrac = event.y/self.graDisImgDim[1]
+		tempY1 = math.floor(clickYFrac*self.infSamGriDat[0])/self.infSamGriDat[0]
+		tempY2 = math.ceil(clickYFrac*self.infSamGriDat[0])/self.infSamGriDat[0]
+		row = min([int(tempY1*self.infSamGriDat[0]),self.infSamGriDat[0]-1])
+		
+		return [row, col, tempX1, tempY1, tempX2, tempY2]
+		
 	#Get mouse press location and update the seed sample analysis image.
-	def getMousePress(self, event):
+	def getMousePressLeft(self, event):
 		print ("mouse clicked at", event.x, event.y)
 		#Stop if the sample has not been graded yet.
 		if self.infClaStrVar.get() == "No grade yet.":
@@ -560,46 +694,109 @@ class GUI(Frame):
 		elif self.toggleState==4:
 			tempImg = self.togImgConf
 		
-		#Determine the column of the cell
-		clickXFrac = event.x/self.graDisImgDim[0]
-		tempX1 = math.floor(clickXFrac*self.infSamGriDat[1])/self.infSamGriDat[1]
-		tempX2 = math.ceil(clickXFrac*self.infSamGriDat[1])/self.infSamGriDat[1]
-		col = min([int(tempX1*self.infSamGriDat[1]),self.infSamGriDat[1]-1])
-		
-		#Determine the row of the cell 
-		clickYFrac = event.y/self.graDisImgDim[1]
-		tempY1 = math.floor(clickYFrac*self.infSamGriDat[0])/self.infSamGriDat[0]
-		tempY2 = math.ceil(clickYFrac*self.infSamGriDat[0])/self.infSamGriDat[0]
-		row = min([int(tempY1*self.infSamGriDat[0]),self.infSamGriDat[0]-1])
+		#Get the row and column of the mouse click.
+		self.row, self.col, self.tempX1, self.tempY1, self.tempX2, self.tempY2 = self.getClickRowAndCol(event)
 		
 		#Appropriately crop the image
-		self.exaDisImg = iForm.cropImg(tempImg, (tempX1,tempY1), (tempX2,tempY2))
+		self.exaDisImg = iForm.cropImg(tempImg, (self.tempX1,self.tempY1), (self.tempX2,self.tempY2))
 		
 		#Update the examination image display
 		self.updateLabelImg(self.exaDis, convImg(iForm.resizeImg(self.exaDisImg, self.exaDisImgDim[0], self.exaDisImgDim[1])))
 		
 		#Update the seed area text
-		areaFul = self.seedSampleAreas[row*self.infSamGriDat[1]+col][0]
-		areaRel = self.seedSampleAreas[row*self.infSamGriDat[1]+col][1]
-		areaDGR = self.seedSampleAreas[row*self.infSamGriDat[1]+col][2]
-		dgrFracStr = "{:5.3f}%".format((areaDGR/areaRel)*100) if areaRel > 0 else 'NaN'
+		flattenedIndex = self.row*self.infSamGriDat[1]+self.col
+		areaFul = self.seedSampleAreas[flattenedIndex][0]
+		areaRel = float(self.seedSampleAreas[flattenedIndex][1])
+		areaDGR = self.seedSampleAreas[flattenedIndex][2]
+		dgrFrac = self.seedSampleInfo[flattenedIndex][1]
+		dgrFracStr = "{:5.3f}%".format(areaDGR/areaRel*100) if areaRel > 0 else 'NaN'
 		
 		self.exaAnaTxt.config(state=NORMAL)
 		self.exaAnaTxt.delete(0., END)
-		seedAreaText = "Row: " + str(row+1)
-		seedAreaText = seedAreaText + "\nColumn: " + str(col+1)
+		
+		seedAreaText = 'Grade*: ' if str(dgrFrac)[:5]=='cust_' else 'Grade: '		
+		seedAreaText = seedAreaText + self.dgrToString(dgrFrac)
+		seedAreaText = seedAreaText + "\nRow: " + str(self.row+1)
+		seedAreaText = seedAreaText + "\nColumn: " + str(self.col+1)
 		seedAreaText = seedAreaText + "\nSeed Pixel Area: " + str(areaFul)
 		seedAreaText = seedAreaText + "\nSmear Pixel Area: " + str(areaRel)
 		seedAreaText = seedAreaText + "\nDGR Pixel Area: " + str(areaDGR)		
 		seedAreaText = seedAreaText + "\nSeed DGR %: " + dgrFracStr
 		self.exaAnaTxt.insert(END, seedAreaText)
 		self.exaAnaTxt.config(state=DISABLED)
+	
+	#Return the string representation of the seed fraction
+	def dgrToString(self, seedFracStr, char=False, asterisk=False):
 		
+		stringRep = ''
+
+		if seedFracStr=='-1' or 'NaN' in str(seedFracStr):
+			stringRep = 'NaN' if char==False else 'N'
+		elif sAnly.isDGR(seedFracStr):
+			stringRep = 'DGR' if char==False else 'D'
+		else:
+			stringRep = 'Not DGR' if char==False else 'G'
+		
+		if asterisk and str(seedFracStr)[:5]=='cust_':
+			stringRep = stringRep + '*'
+		
+		return stringRep
+	
+	#Get mouse press location and update the seed sample analysis image.
+	def getMousePressRight(self, event):
+		print ("right mouse clicked at", event.x, event.y)
+		#Stop if the sample has not been graded yet.
+		if self.infClaStrVar.get() == "No grade yet.":
+			self.infLogTxt.insert(END, "\nNo seed sample graded yet.")
+			return
+			
+		# display the popup menu
+		self.row, self.col, self.tempX1, self.tempY1, self.tempX2, self.tempY2 = self.getClickRowAndCol(event)
+		try:
+			self.popup.tk_popup(event.x_root, event.y_root, 0)
+		finally:
+			# make sure to release the grab (Tk 8.0a1 only)
+			self.popup.grab_release()
+	
+	#Set the seed to be DGR
+	def setSeedCustDGR(self):
+	
+		#Modify the DGR rating
+		self.seedSampleInfoMod[self.row*self.infSamGriDat[1]+self.col][1] = 'cust_DGR'
+		
+		#Update the toggle images
+		self.printGradeToggleImgs(self.seedSampleInfoMod, toggleState=self.toggleState)
+		
+	#Set the seed to be not DGR
+	def setSeedCustNotDGR(self):
+		#Modify the DGR rating
+		self.seedSampleInfoMod[self.row*self.infSamGriDat[1]+self.col][1] = 'cust_NotDGR'
+		
+		#Update the toggle images
+		self.printGradeToggleImgs(self.seedSampleInfoMod, toggleState=self.toggleState) 
+		
+	#Set the seed to be NaN
+	def setSeedCustNaN(self):
+		#Modify the DGR rating
+		self.seedSampleInfoMod[self.row*self.infSamGriDat[1]+self.col][1] = 'cust_NaN'
+		
+		#Update the toggle images
+		self.printGradeToggleImgs(self.seedSampleInfoMod, toggleState=self.toggleState)
+		
+	#Reset the seed's grade
+	def resetSeedGrade(self):
+		#Update the toggle images
+		self.printGradeToggleImgs(self.seedSampleInfo, toggleState=self.toggleState)
+	
+#run the program
+def runGUI():
+	root = Tk()
+	application = GUI(master=root)
+	application.mainloop()
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~Run the program~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-root = Tk()
-application = GUI(master=root)
-application.mainloop()
+if __name__ == "__main__":
+	runGUI()
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

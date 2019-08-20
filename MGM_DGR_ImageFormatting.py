@@ -239,7 +239,7 @@ class ImgUtility:
 		
 		#Floodfill algorithm
 		if(i < 0 or j < 0 or i == img.shape[0] or j == img.shape[1] or img[i][j] > replacedC):
-			return img
+			return [img, workImg]
 		
 		#Markers for covering examined pixels must be higher in value than the
 		#replacement value, and success or failure values must differ from each other.
@@ -335,8 +335,9 @@ class ImgCamera:
 		else:
 			camInd = custCamIndex
 			
-		camera = cv2.VideoCapture(camInd)
+		camera = cv2.VideoCapture(camInd, cv2.CAP_DSHOW)
 		status, camImg = camera.read()
+		cv2.destroyAllWindows()
 		if wantStatus:
 			return status
 		elif status:
@@ -375,7 +376,7 @@ class ImgCalibrator:
 			calibPhotoOG = img
 		calibPhoto = self.iForm.averageImg(self.iForm.cropImg(calibPhotoOG, leftTopCorner, rightBotCorner))
 		self.iForm.saveImageToFolder(self.saveFolderPath, self.saveFilePath, calibPhoto)
-		return (calibPhoto, calibPhotoOG)
+		return [calibPhoto, calibPhotoOG, os.path.join(self.saveFolderPath, self.saveFilePath)]
 	
 	#Calibrate a colour in BGR to BGR
 	def calibrateCol(self, img, colour='white'):
