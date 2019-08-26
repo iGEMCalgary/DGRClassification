@@ -315,17 +315,18 @@ class ImgCamera:
 		self.memImg = np.zeros((200,200,3),dtype=np.uint8)
 		
 		if cameraIndex == None:
-			cameraIndexPossibleRange = 200
+			cameraIndexPossibleRange = 100
 			cameraFound = False 
 			for i in range(cameraIndexPossibleRange)[1:]:
-				if takePicture(custCamIndex=i, wantStatus=True):
-					print("Camera located at index {}".format(i))
+				if self.takePhoto(custCamIndex=i, wantStatus=True):
 					self.cameraIndex = i
 					cameraFound = True
+					break
 			if not cameraFound:
 				self.cameraIndex = 0
 		else:
 			self.cameraIndex = cameraIndex
+		print("Camera Found at Index {}.".format(self.cameraIndex))
 	
 	#Take a picture using the camera and return the status or image
 	#Also save the most recent image.
@@ -336,6 +337,7 @@ class ImgCamera:
 			camInd = custCamIndex
 			
 		camera = cv2.VideoCapture(camInd, cv2.CAP_DSHOW)
+		status, camImg = camera.read()
 		status, camImg = camera.read()
 		cv2.destroyAllWindows()
 		if wantStatus:

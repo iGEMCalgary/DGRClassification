@@ -24,7 +24,7 @@ from MGM_DGR_SeedClassifier import SeedSampleAnalyzer
 #~~~~~~~~~~~~~~~~~~~~~~~Create Backend~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #Other classes 
 iForm = ImgUtility()
-iCamr = ImgCamera(cameraIndex=0)
+iCamr = ImgCamera(cameraIndex=None)
 iCali = ImgCalibrator(iCamr, "CalibrationImages", "guiCalibrationPhoto.png")
 sClas = SeedClassifier()
 sAnly = SeedSampleAnalyzer()
