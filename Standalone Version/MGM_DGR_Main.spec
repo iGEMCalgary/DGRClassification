@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['MGM_DGR_Main.pyw'],
-             pathex=['C:\\Users\\jakel\\OneDrive\\Documents\\GitHub\\DGRClassification\\DGRClassification'],
+             pathex=['C:\\Users\\jakel\\OneDrive\\Documents\\GitHub\\DGRClassification\\DGRClassification\\Python Script Version'],
              binaries=[],
              datas=[],
              hiddenimports=[],

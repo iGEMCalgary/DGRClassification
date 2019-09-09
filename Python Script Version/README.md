@@ -14,7 +14,7 @@ Python MGM_DGR_Classifier.py CalibrationImages DGRChip.png Images 7 17 0
 > To create/update the standalone executable folder and files:
 > *Only works with Windows machines.
 > *Requires pyInstaller (install with: pip install PyInstaller)
-> *Requires pyWin32 (install wit:h pip install pywin32)
+> *Requires pyWin32 (install with: pip install pywin32)
 pyinstaller --onefile MGM_DGR_GUI.py
 
 > Once EXE successfully built, move 'build', 'dist', 'MGM_DGR_Main.spec'
