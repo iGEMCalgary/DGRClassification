@@ -13,7 +13,7 @@ Python MGM_DGR_GUI.py
 > *Only works with Windows machines.
 > *Requires pyInstaller (install with: pip install PyInstaller)
 > *Requires pyWin32 (install with: pip install pywin32)
-pyinstaller --onefile MGM_DGR_GUI.py
+pyinstaller --onefile MGM_DGR_Main.py
 
 > Once EXE successfully built, move 'build' and 'dist' folders and the 'MGM_DGR_Main.spec' 
 > file into the 'Great Grader' folder in the GreatGrader 
