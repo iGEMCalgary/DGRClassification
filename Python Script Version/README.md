@@ -6,6 +6,8 @@
 Python MGM_DGR_GUI.py
 
 > To run the GUI standalone double click the MGM_DGR_Main.py file.
+ > To enable camera functionality through an android phone, download IP Webcam on a phone and "Start server".
+ > Then, copy the ip address into the appropriate entry and press the "Activate IP Webcam Phone Camera" button.
 
 > To create/update the standalone executable folder and files:
 > *Only works with Windows machines.
