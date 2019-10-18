@@ -1,0 +1,53 @@
+
+~~~~~~~~~~~~~Canola Seed Grading~~~~~~~~~~~~~
+Date: 		Fri Oct 18 01:10:58 2019
+Grade:		No. 1 
+
+Distinctly Green Sample %:	1.887%
+Distinctly Green Seeds:		1
+Used Seed Sample Size:		53
+Initial Seed Sample Size: 	64
+Discarded Seeds:		11
+Unaltered Grade:		True
+
+Calibration Image Used:		C:/Users/jakel/OneDrive/Documents/GitHub/DGRClassification/DGRClassification/Python Script Version/CalibrationImages/2019-10-17 Chip 2.png
+Seed Sample Image Used:		C:/Users/jakel/OneDrive/Documents/GitHub/DGRClassification/DGRClassification/Python Script Version/Images/guiSeedSamplePhoto_38.png
+Time to Grade:			Time: 0 minutes, 1.784 seconds.
+
+D = Distinctly Green, G = Not Distinctly Green, N = Discarded Seed
+		Col
+		1	2	3	4	5	6	7	8
+Row 	1	G	G	G	G	G	G	G	G
+	2	G	G	G	G	G	G	G	G
+	3	G	G	G	G	G	G	G	G
+	4	G	D	G	G	G	G	G	G
+	5	G	G	G	G	G	G	G	G
+	6	G	G	G	G	G	G	G	G
+	7	G	G	G	G	G	G	G	G
+	8	G	G	G	G	G	G	G	G
+	
+
+More Settings:
+Seed Sample Crop X1:		0.32
+Seed Sample Crop Y1:		0.28
+Seed Sample Crop X2:		0.55
+Seed Sample Crop Y2:		0.7
+
+Advanced Settings:
+bgdSatMax:			35.0
+bgdNGSatMax:			30.0
+bgdNGBriMin:			25.0
+smrThreshMin:			210.0
+smrDiffW:			1.1
+smrGreyPenaltyW:			1.4
+smrPxlMin:			12.0
+dgrThreshMin:			20.0
+dgrLRelMax:			15.0
+dgrLMin:			15.0
+dgrDistMax:			22.0
+dgrAEdge:			-0.4
+dgrBEdge:			0.4
+dgrFracMin:			0.8
+
+
+		

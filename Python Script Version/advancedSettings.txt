@@ -1,0 +1,15 @@
+Advanced Settings:
+bgdSatMax:			35.0
+bgdNGSatMax:			30.0
+bgdNGBriMin:			25.0
+smrThreshMin:			210.0
+smrDiffW:			1.1
+smrGreyPenaltyW:			1.4
+smrPxlMin:			12.0
+dgrThreshMin:			20.0
+dgrLRelMax:			15.0
+dgrLMin:			15.0
+dgrDistMax:			22.0
+dgrAEdge:			-0.4
+dgrBEdge:			0.4
+dgrFracMin:			0.8

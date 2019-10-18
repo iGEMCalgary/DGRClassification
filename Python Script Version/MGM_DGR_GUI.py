@@ -19,7 +19,6 @@ from MGM_DGR_ImageFormatting import ImgUtility
 from MGM_DGR_ImageFormatting import ImgCalibrator
 from MGM_DGR_ImageFormatting import ImgCamera
 from MGM_DGR_SeedClassifier import SeedClassifier
-from MGM_DGR_SeedClassifier import SeedSampleAnalyzer
 
 #~~~~~~~~~~~~~~~~~~~~~~~Create Backend~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #Other classes 
@@ -27,13 +26,12 @@ iForm = ImgUtility()
 iCamr = ImgCamera(cameraIndex=None)
 iCali = ImgCalibrator(iCamr, "CalibrationImages", "guiCalibrationPhoto.png")
 sClas = SeedClassifier()
-sAnly = SeedSampleAnalyzer()
 
 #Convert an image from numpy format to GUI usable format
 convImg = lambda x: ImageTk.PhotoImage(image=Image.fromarray(iForm.convertNpToRGBArr(x)))
 
 #Create a black 3 channel RGB numpy image with the given dimensions (x,y)
-blankImg = lambda x: np.zeros((x[0], x[1], 3))
+blankImg = lambda x: np.zeros((x[1], x[0], 3))
 
 #Browse for an image file path
 browseImageFromComp = lambda x: filedialog.askopenfilename(initialdir = os.getcwd(), title = "Select preview image file",
@@ -47,8 +45,8 @@ class GUI(Frame):
 		#Basic frame creation with fixed width and height range
 		Frame.__init__(self, master)
 		master.title("yOIL Seed Sample Classifier")
-		wMin,hMin = 1000, 600
-		wMax, hMax = 1100, 720
+		wMin,hMin = 1100, 600
+		wMax, hMax = 1280, 720
 		master.minsize(width=wMin, height=hMin)
 		master.maxsize(width=wMax, height=hMax)
 		self.pack()
@@ -67,13 +65,16 @@ class GUI(Frame):
 		"""
 		#Create button canvas panel
 		
-		buttonPanel = Canvas(master, width=180, height=hMin, bg="#8ac926")
+		buttonPanel = Canvas(master, width=200, height=hMin, bg="#8ac926")
 		buttonPanel.pack(side=LEFT)
 		
-		#Create button description labels
-		leftButLab = Label(buttonPanel, text="Left button takes a photo using the camera", bg="#8ac926").grid(row=0, column=0, columnspan=4, pady=2)
-		rightButLab = Label(buttonPanel, text="Right button browses for an image", bg="#8ac926").grid(row=1, column=0, columnspan=4)
+		#Create buttons to activate phone camera through IP Webcam
+		self.ipCamBut = Button(buttonPanel, text="Activate IP Webcam Phone Camera", command=self.ipCamButCmd, bg="#829e83").grid(row=0, column=0, columnspan=4, pady=2)
 		
+		self.ipCamIPStrVar = StringVar()
+		self.ipCamIP = Entry(buttonPanel, textvariable=self.ipCamIPStrVar, width=17).grid(sticky='W', row=1, column=2, columnspan=3)
+		self.ipCamIPLab = Label(buttonPanel, text="ip: http://", bg="#829e83").grid(sticky='E', row=1,column=1)
+
 		#Create the buttons and their labels
 		self.preButL = Button(buttonPanel, text='Pc', width=2, command=self.preButCmd, bg="#1982C4").grid(row=2,column=2)
 		self.preButR = Button(buttonPanel, text='Pb', width=2, command=self.preButFilCmd, bg="#1982C4").grid(row=2,column=3)
@@ -175,23 +176,28 @@ class GUI(Frame):
 		#The information canvas panel will be below the button panel
 		self.infClaStrVar = StringVar()
 		self.infClaStrVar.set("No grade yet.")
-		self.infClaLabVar = Label(buttonPanel, textvariable=self.infClaStrVar, bg="#FFCA3A").grid(sticky='W',row=18,column=2, columnspan=2)
-		self.infClaLab = Label(buttonPanel, text="Grade of Sample:", bg="#8ac926").grid(sticky='E',row=18,column=0, columnspan=2)
+		self.infClaLabVar = Label(buttonPanel, textvariable=self.infClaStrVar, bg="#FFCA3A").grid(sticky='W',row=19,column=2, columnspan=2)
+		self.infClaLab = Label(buttonPanel, text="Grade of Sample:", bg="#8ac926").grid(sticky='E',row=19,column=0, columnspan=2)
 		
 		self.infLogStrVar = StringVar()
 		self.infLogStrVar.set("No grading completed.")
-		self.infLogLabVar = Label(buttonPanel, textvariable=self.infLogStrVar, bg="#FFCA3A").grid(sticky='W',row=19,column=2, columnspan=2)
-		self.infLogLab = Label(buttonPanel, text="Grading Timing:", bg="#8ac926").grid(sticky='E',row=19,column=0, columnspan=2)
+		self.infLogLabVar = Label(buttonPanel, textvariable=self.infLogStrVar, bg="#FFCA3A").grid(sticky='W',row=20,column=2, columnspan=2)
+		self.infLogLab = Label(buttonPanel, text="Grading Timing:", bg="#8ac926").grid(sticky='E',row=20,column=0, columnspan=2)
+		
+		#advanced settings button
+		self.advSetCount = 0
+		self.advSetBut = Button(buttonPanel, text="Advanced Settings", command=self.advSetButCmd, bg="#fe9f0f").grid(row=18,column=0,columnspan=4)
+		self.advSetWindow = None
 		
 		#Text log
 		self.infLogTxt = Text(buttonPanel, bg="Grey", width=40, height=16, wrap=WORD)
-		self.infLogTxt.grid(row=20,column=0, columnspan=4)
+		self.infLogTxt.grid(row=21,column=0, columnspan=4)
 		self.infLogTxt.insert(END, "Welcome!\nFor reference, Red=DGR, Yellow=Fine, and Blue=Absent.")
 		self.infLogTxt.insert(END, "\nAlso, The lighter the green, the higher the confidence.")
 		self.infLogTxt.insert(END, "\nAlso, use the keys 'q', 'w', 'e', 'r', and 't' to toggle analysis images once a grading is complete.")		
 		
 		self.infLogScr = Scrollbar(buttonPanel, command=self.infLogTxt.yview)
-		self.infLogScr.grid(row=20, column=4, sticky='nsew')
+		self.infLogScr.grid(row=21, column=4, sticky='nsew')
 		self.infLogTxt['yscrollcommand'] = self.infLogScr.set
 		
 		"""
@@ -206,7 +212,7 @@ class GUI(Frame):
 		imagePanel.pack(side=TOP)
 		
 		#Set the images in the labels
-		self.preDisCalImgDim = (200,200)
+		self.preDisCalImgDim = (250,200)
 		self.rawCalImg = blankImg(self.preDisCalImgDim)
 		self.calibUpdated = False
 		self.preDisCalImg = convImg(iForm.drawBox(blankImg(self.preDisCalImgDim),(0,0),self.preDisCalImgDim))
@@ -214,21 +220,21 @@ class GUI(Frame):
 		self.preDisCal.grid(row=1,column=0, padx=5, pady=5)
 		self.preDisCalLab = Label(imagePanel, text="Preview Image for Calibration", bg="#71A520").grid(row=0,column=0, pady=2)
 		
-		self.preDisGraImgDim = (200,200)
+		self.preDisGraImgDim = (250,200)
 		self.rawSamImg = blankImg(self.preDisGraImgDim)
 		self.preDisGraImg = convImg(iForm.drawGrid(blankImg(self.preDisGraImgDim),(0,0),self.preDisGraImgDim,1,1))
 		self.preDisGra = Label(imagePanel, image=self.preDisGraImg, width=self.preDisGraImgDim[0], height=self.preDisGraImgDim[1])
 		self.preDisGra.grid(row=1,column=1, padx=5, pady=5)
 		self.preDisGraLab = Label(imagePanel, text="Preview Image for Seed Sample", bg="#71A520").grid(row=0, column=1)
 		
-		self.calDisImgDim = (200,200)
+		self.calDisImgDim = (250,200)
 		self.calDisImg = convImg(blankImg(self.calDisImgDim))
 		self.useCalImg = blankImg(self.calDisImgDim)
 		self.calDis = Label(imagePanel, image=self.calDisImg, width=self.calDisImgDim[0], height=self.calDisImgDim[1])
 		self.calDis.grid(sticky="NW", row=1,column=2, padx=5, pady=5)
 		self.calDisLab = Label(imagePanel, text= "Calibration Image", bg="#71A520").grid(row=0,column=2)
 		
-		self.graDisImgDim = (400,400)
+		self.graDisImgDim = (500,400)
 		self.graDisImg = convImg(iForm.drawGrid(blankImg(self.graDisImgDim),(0,0),self.graDisImgDim,1,1))
 		self.sampleUpdated = False
 		self.graDis = Label(imagePanel, image=self.graDisImg, width=self.graDisImgDim[0], height=self.graDisImgDim[1])
@@ -238,7 +244,7 @@ class GUI(Frame):
 		self.graDisLabStrVar.set("No Image Yet.")
 		self.graDisLabVar = Label(imagePanel, textvariable=self.graDisLabStrVar, bg="#FFCA3A").grid(sticky='W',row=2,column=1)
 		
-		self.exaDisImgDim = (200,200)
+		self.exaDisImgDim = (250,200)
 		self.exaDisImg = convImg(blankImg(self.exaDisImgDim))
 		self.exaDis = Label(imagePanel, image=self.exaDisImg, width=self.exaDisImgDim[0], height=self.exaDisImgDim[1])
 		self.exaDis.grid(sticky="NW", row=3,column=2, padx=5, pady=5)
@@ -253,7 +259,7 @@ class GUI(Frame):
 		self.exaAnaTxt.insert(END,"BALLS")
 		self.exaAnaTxt.place()
 		"""
-		self.exaAnaTxt = Text(imagePanel, bg="#FFCA3A", width=24, height=11)
+		self.exaAnaTxt = Text(imagePanel, bg="#FFCA3A", width=30, height=11)
 		self.exaAnaTxt.grid(sticky="NW", row=4, column=2, padx=5, pady=5)
 		self.exaAnaTxt.insert(END,"No Grade Yet.")
 		self.exaAnaTxt.config(state=DISABLED)
@@ -331,7 +337,12 @@ class GUI(Frame):
 		#Display seed sample preview
 		self.updateLabelImg(self.preDisGra, convImg(iForm.drawGrid(iForm.resizeImg(img, self.preDisGraImgDim[0], 
 							self.preDisGraImgDim[1]), self.infSamCroDat[0], self.infSamCroDat[1], self.infSamGriDat[0], self.infSamGriDat[1])))
-		
+	
+	#Start using a phone camera through IP Webcam 
+	def ipCamButCmd(self):
+		succMsg = iCamr.switchToIPCam("http://" + str(self.ipCamIPStrVar.get()));
+		self.infLogTxt.insert(END, "\n" + succMsg)
+	
 	#Take and display the preview image
 	def preButCmd(self):
 		#Get and convert photos
@@ -484,12 +495,23 @@ D = Distinctly Green, G = Not Distinctly Green, N = Discarded Seed
 		Col
 	{}
 Row 	{}
+
+More Settings:
+Seed Sample Crop X1:		{}
+Seed Sample Crop Y1:		{}
+Seed Sample Crop X2:		{}
+Seed Sample Crop Y2:		{}
+
+{}
+
 		""".format(
 			time.strftime("%c"), self.infClaStrVar.get(), 
 			dgrPercent, aNums[1], aNums[2], int(aNums[2])+int(discardQuant), discardQuant, gradeUnaltered,
 			self.calibFilePath, self.sampleFilePath, self.infLogStrVar.get(),
-			cols, rows)
-		
+			cols, rows, 
+			self.infSamCroDat[0][0], self.infSamCroDat[0][1], self.infSamCroDat[1][0], self.infSamCroDat[1][1],
+			sClas.getASettingsString())
+
 		#Get the current date
 		reportDate = time.strftime("%Y_%b_%d_%H_%M_%S")
 		
@@ -506,15 +528,15 @@ Row 	{}
 	#Print the grade results and set the toggle images
 	def printGradeToggleImgs(self, seedSampleInfo, timeStr=None, toggleState=0):
 		#Analyze the total data of the seed sample
-		seedAnalysisString = sAnly.analyzeSeedSample(seedSampleInfo, timeStr)
-		self.infLogTxt.insert(END, seedAnalysisString[0])
+		seedAnalysisString = sClas.getSeedAnly().analyzeSeedSample(seedSampleInfo, timeStr)
+		self.infLogTxt.insert(END, "\n"+seedAnalysisString[0])
 		self.infClaStrVar.set(seedAnalysisString[0][36:42])
 		if len(seedAnalysisString) > 1:
 			self.infLogStrVar.set(seedAnalysisString[1])
 		self.seedAnalysisString = seedAnalysisString
 		
 		#Create images for toggling
-		self.togImgWm, self.togImgRel, self.togImgDGR, self.togImgConf = sAnly.createInfoImages(seedSampleInfo, self.infSamGriDat[0], self.infSamGriDat[1])
+		self.togImgWm, self.togImgRel, self.togImgDGR, self.togImgConf = sClas.getSeedAnly().createInfoImages(seedSampleInfo, self.infSamGriDat[0], self.infSamGriDat[1])
 		self.graDisLabStrVar.set("Raw Image")
 		self.toggleState=toggleState
 		self.updateToggleImg()
@@ -625,7 +647,7 @@ Row 	{}
 			newY1 = getCoordinateLow(self.infSamCroY1StrVar.get())
 			newX2 = getCoordinateHigh(self.infSamCroX2StrVar.get())
 			newY2 = getCoordinateHigh(self.infSamCroY2StrVar.get())
-			if newX1<0. or newX1>1. or newY1<0. or newY1>1. or newX2<0. or newX2>1. or newY2<0. or newY2>1.:
+			if newX1<0. or newX1>1. or newY1<0. or newY1>1. or newX2<0. or newX2>1. or newY2<0. or newY2>1. or newX1 >= newX2 or newY1 >= newY2:
 				self.infLogTxt.insert(END, errorMsg)
 				return
 		except ValueError:
@@ -656,6 +678,178 @@ Row 	{}
 		#If the parameters are valid, update them and the images 
 		self.infSamGriDat = (newRow,newCol)
 		self.updateSampleImage(self.rawSamImg)
+	
+	#Opens an advanced settings window
+	def advSetButCmd(self):
+		#ensure only one settings window is open at any time
+		if self.advSetCount > 0:
+			return
+		self.advSetCount = self.advSetCount + 1
+		
+		#Create the window 
+		self.advSetWindow = Toplevel(self)
+		self.advSetWindow.wm_title("Advanced Settings")
+		self.advSetWindow.protocol("WM_DELETE_WINDOW", self.closeAdvSetWindow)
+		
+		#Set buttons and entries
+		#Background
+		self.advSetWindow.bgTtl = Label(self.advSetWindow, text="Background Parse Settings", bg='#6b7560').grid(row=0, column=0, columnspan=4)
+		
+		self.advSetWindow.bgSatLab = Label(self.advSetWindow, text="General Saturation Max:", bg='#8e9c80').grid(sticky='E',row=1, column=0, columnspan=2)
+		self.advSetWindow.bgSatLim = Label(self.advSetWindow, text=str(sClas.getASettings('bgdSatMax', value='limits')), bg='#8e9c80').grid(row=1, column=2)
+		self.advSetWindow.bgSatStrVar = StringVar()
+		self.advSetWindow.bgSatStrVar.set(sClas.getASettings('bgdSatMax', value='actual'))
+		self.advSetWindow.bgSatEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.bgSatStrVar, width=10).grid(row=1, column=3)
+		
+		self.advSetWindow.bgGSatLab = Label(self.advSetWindow, text="Green Saturation Max:", bg='#8e9c80').grid(sticky='E',row=2, column=0, columnspan=2)
+		self.advSetWindow.bgGSatLim = Label(self.advSetWindow, text=str(sClas.getASettings('bgdNGSatMax', value='limits')), bg='#8e9c80').grid(row=2, column=2)
+		self.advSetWindow.bgGSatStrVar = StringVar()
+		self.advSetWindow.bgGSatStrVar.set(sClas.getASettings('bgdNGSatMax', value='actual'))
+		self.advSetWindow.bgGSatEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.bgGSatStrVar, width=10).grid(row=2, column=3)
+
+		self.advSetWindow.bgGBriLab = Label(self.advSetWindow, text="Green Brightness Max:", bg='#8e9c80').grid(sticky='E', row=3, column=0, columnspan=2)
+		self.advSetWindow.bgGBriLim = Label(self.advSetWindow, text=str(sClas.getASettings('bgdNGBriMin', value='limits')), bg='#8e9c80').grid(row=3, column=2)
+		self.advSetWindow.bgGBriStrVar = StringVar()
+		self.advSetWindow.bgGBriStrVar.set(sClas.getASettings('bgdNGBriMin', value='actual'))
+		self.advSetWindow.bgGBriEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.bgGBriStrVar, width=10).grid(row=3, column=3)
+		
+		self.advSetWindow.newline = Label(self.advSetWindow, text="").grid(row=4)
+		
+		#Smear
+		self.advSetWindow.smrTtl = Label(self.advSetWindow, text="Smear Parse Settings", bg='#7f9912').grid(row=5, column=0, columnspan=4)
+		
+		self.advSetWindow.smrThreLab = Label(self.advSetWindow, text="Threshold Min:", bg='#b5b516').grid(sticky='E',row=6, column=0, columnspan=2)
+		self.advSetWindow.smrThreLim = Label(self.advSetWindow, text=str(sClas.getASettings('smrThreshMin', value='limits')), bg='#b5b516').grid(row=6, column=2)
+		self.advSetWindow.smrThreStrVar = StringVar()
+		self.advSetWindow.smrThreStrVar.set(sClas.getASettings('smrThreshMin', value='actual'))
+		self.advSetWindow.smrThreEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.smrThreStrVar, width=10).grid(row=6, column=3)
+		
+		self.advSetWindow.smrHDifLab = Label(self.advSetWindow, text="Hue Difference Weight:", bg='#b5b516').grid(sticky='E',row=7, column=0, columnspan=2)
+		self.advSetWindow.smrHDifLim = Label(self.advSetWindow, text=str(sClas.getASettings('smrDiffW', value='limits')), bg='#b5b516').grid(row=7, column=2)
+		self.advSetWindow.smrHDifStrVar = StringVar()
+		self.advSetWindow.smrHDifStrVar.set(sClas.getASettings('smrDiffW', value='actual'))
+		self.advSetWindow.smrHDifEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.smrHDifStrVar, width=10).grid(row=7, column=3)
+
+		self.advSetWindow.smrGPenLab = Label(self.advSetWindow, text="Grey Penalty Weight:", bg='#b5b516').grid(sticky='E', row=8, column=0, columnspan=2)
+		self.advSetWindow.smrGPenLim = Label(self.advSetWindow, text=str(sClas.getASettings('smrGreyPenaltyW', value='limits')), bg='#b5b516').grid(row=8, column=2)
+		self.advSetWindow.smrGPenStrVar = StringVar()
+		self.advSetWindow.smrGPenStrVar.set(sClas.getASettings('smrGreyPenaltyW', value='actual'))
+		self.advSetWindow.smrGPenEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.smrGPenStrVar, width=10).grid(row=8, column=3)
+
+		self.advSetWindow.smrPxlLab = Label(self.advSetWindow, text="Smear Pixel Count Min:", bg='#b5b516').grid(sticky='E', row=9, column=0, columnspan=2)
+		self.advSetWindow.smrPxlLim = Label(self.advSetWindow, text=str(sClas.getASettings('smrPxlMin', value='limits')), bg='#b5b516').grid(row=9, column=2)
+		self.advSetWindow.smrPxlStrVar = StringVar()
+		self.advSetWindow.smrPxlStrVar.set(sClas.getASettings('smrPxlMin', value='actual'))
+		self.advSetWindow.smrPxlEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.smrPxlStrVar, width=10).grid(row=9, column=3)
+
+		self.advSetWindow.newline = Label(self.advSetWindow, text="").grid(row=10)
+
+		#DGR
+		self.advSetWindow.dgrTtl = Label(self.advSetWindow, text="Distinctly Green Pixel Settings", bg='#2cb00e').grid(row=11, column=0, columnspan=4)
+		
+		self.advSetWindow.dgrThreLab = Label(self.advSetWindow, text="Threshold Min:", bg='#3be615').grid(sticky='E',row=12, column=0, columnspan=2)
+		self.advSetWindow.dgrThreLim = Label(self.advSetWindow, text=str(sClas.getASettings('dgrThreshMin', value='limits')), bg='#3be615').grid(row=12, column=2)
+		self.advSetWindow.dgrThreStrVar = StringVar()
+		self.advSetWindow.dgrThreStrVar.set(sClas.getASettings('dgrThreshMin', value='actual'))
+		self.advSetWindow.dgrThreEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.dgrThreStrVar, width=10).grid(row=12, column=3)
+		
+		self.advSetWindow.dgrRelLLab = Label(self.advSetWindow, text="Relative L Max:", bg='#3be615').grid(sticky='E',row=13, column=0, columnspan=2)
+		self.advSetWindow.dgrRelLLim = Label(self.advSetWindow, text=str(sClas.getASettings('dgrLRelMax', value='limits')), bg='#3be615').grid(row=13, column=2)
+		self.advSetWindow.dgrRelLStrVar = StringVar()
+		self.advSetWindow.dgrRelLStrVar.set(sClas.getASettings('dgrLRelMax', value='actual'))
+		self.advSetWindow.dgrRelLEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.dgrRelLStrVar, width=10).grid(row=13, column=3)
+		
+		self.advSetWindow.dgrLMinLab = Label(self.advSetWindow, text="L Min:", bg='#3be615').grid(sticky='E',row=14, column=0, columnspan=2)
+		self.advSetWindow.dgrLMinLim = Label(self.advSetWindow, text=str(sClas.getASettings('dgrLMin', value='limits')), bg='#3be615').grid(row=14, column=2)
+		self.advSetWindow.dgrLMinStrVar = StringVar()
+		self.advSetWindow.dgrLMinStrVar.set(sClas.getASettings('dgrLMin', value='actual'))
+		self.advSetWindow.dgrLMinEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.dgrLMinStrVar, width=10).grid(row=14, column=3)
+
+		self.advSetWindow.dgrLDifLab = Label(self.advSetWindow, text="ab Volume Distance Max:", bg='#3be615').grid(sticky='E', row=15, column=0, columnspan=2)
+		self.advSetWindow.dgrLDifLim = Label(self.advSetWindow, text=str(sClas.getASettings('dgrDistMax', value='limits')), bg='#3be615').grid(row=15, column=2)
+		self.advSetWindow.dgrLDifStrVar = StringVar()
+		self.advSetWindow.dgrLDifStrVar.set(sClas.getASettings('dgrDistMax', value='actual'))
+		self.advSetWindow.dgrLDifEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.dgrLDifStrVar, width=10).grid(row=15, column=3)
+
+		self.advSetWindow.dgrAEdgLab = Label(self.advSetWindow, text="a Edge Slope:", bg='#3be615').grid(sticky='E', row=16, column=0, columnspan=2)
+		self.advSetWindow.dgrAEdgLim = Label(self.advSetWindow, text=str(sClas.getASettings('dgrAEdge', value='limits')), bg='#3be615').grid(row=16, column=2)
+		self.advSetWindow.dgrAEdgStrVar = StringVar()
+		self.advSetWindow.dgrAEdgStrVar.set(sClas.getASettings('dgrAEdge', value='actual'))
+		self.advSetWindow.dgrAEdgEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.dgrAEdgStrVar, width=10).grid(row=16, column=3)
+		
+		self.advSetWindow.dgrBEdgLab = Label(self.advSetWindow, text="b Edge Slope:", bg='#3be615').grid(sticky='E', row=17, column=0, columnspan=2)
+		self.advSetWindow.dgrBEdgLim = Label(self.advSetWindow, text=str(sClas.getASettings('dgrBEdge', value='limits')), bg='#3be615').grid(row=17, column=2)
+		self.advSetWindow.dgrBEdgStrVar = StringVar()
+		self.advSetWindow.dgrBEdgStrVar.set(sClas.getASettings('dgrBEdge', value='actual'))
+		self.advSetWindow.dgrBEdgEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.dgrBEdgStrVar, width=10).grid(row=17, column=3)		
+
+		self.advSetWindow.dgrFracLab = Label(self.advSetWindow, text="DG Fraction Min:", bg='#3be615').grid(sticky='E', row=18, column=0, columnspan=2)
+		self.advSetWindow.dgrFracLim = Label(self.advSetWindow, text=str(sClas.getASettings('dgrFracMin', value='limits')), bg='#3be615').grid(row=18, column=2)
+		self.advSetWindow.dgrFracStrVar = StringVar()
+		self.advSetWindow.dgrFracStrVar.set(sClas.getASettings('dgrFracMin', value='actual'))
+		self.advSetWindow.dgrFracEnt = Entry(self.advSetWindow, textvariable=self.advSetWindow.dgrFracStrVar, width=10).grid(row=18, column=3)	
+	
+		self.advSetWindow.newline = Label(self.advSetWindow, text="").grid(row=17)
+		self.advSetWindow.saveSetBut = Button(self.advSetWindow, text='Save Settings', command=self.saveAdvSettings, bg="#c41019").grid(row=19, column=0, columnspan=4)
+		self.advSetWindow.saveSetBut = Button(self.advSetWindow, text='Reset Settings', command=self.resetAdvSettings, bg="#c41019").grid(row=20, column=0, columnspan=4)		
+		self.advSetWindow.statusMsgStrVar = StringVar()
+		self.advSetWindow.statusMsg = Label(self.advSetWindow, textvariable=self.advSetWindow.statusMsgStrVar, width=40).grid(row=21, column=0, columnspan=4)
+
+		
+	#close the advanced settings window
+	def closeAdvSetWindow(self):
+		self.advSetCount = self.advSetCount - 1
+		self.advSetWindow.destroy()
+	
+	#save the input settings of the advanced settings window
+	#also saves the input savings to a txt file
+	def saveAdvSettings(self):
+		#Get the settings from the user
+		settingsDict={}
+		settingsDict['bgdSatMax']=float(self.advSetWindow.bgSatStrVar.get())		
+		settingsDict['bgdNGSatMax']=float(self.advSetWindow.bgGSatStrVar.get())
+		settingsDict['bgdNGBriMin']=float(self.advSetWindow.bgGBriStrVar.get())
+		
+		settingsDict['smrThreshMin']=float(self.advSetWindow.smrThreStrVar.get())
+		settingsDict['smrDiffW']=float(self.advSetWindow.smrHDifStrVar.get())
+		settingsDict['smrGreyPenaltyW']=float(self.advSetWindow.smrGPenStrVar.get())
+		settingsDict['smrPxlMin']=float(self.advSetWindow.smrPxlStrVar.get())
+		
+		settingsDict['dgrThreshMin']=float(self.advSetWindow.dgrThreStrVar.get())
+		settingsDict['dgrLRelMax']=float(self.advSetWindow.dgrRelLStrVar.get())
+		settingsDict['dgrLMin']=float(self.advSetWindow.dgrLMinStrVar.get())
+		settingsDict['dgrDistMax']=float(self.advSetWindow.dgrLDifStrVar.get())
+		settingsDict['dgrAEdge']=float(self.advSetWindow.dgrAEdgStrVar.get())
+		settingsDict['dgrBEdge']=float(self.advSetWindow.dgrBEdgStrVar.get())
+		settingsDict['dgrFracMin']=float(self.advSetWindow.dgrFracStrVar.get())
+
+		if(sClas.setASettings(settingsDict)):
+			self.advSetWindow.statusMsgStrVar.set("Settings Successfully Saved.")
+		else:
+			self.advSetWindow.statusMsgStrVar.set("Range Error: Settings Unsuccessfully Saved.")
+
+	#Reset the advanced settings to the defaults
+	def resetAdvSettings(self):
+		sClas.resetASettings()
+		self.advSetWindow.bgSatStrVar.set(sClas.getASettings('bgdSatMax', value='actual'))
+		self.advSetWindow.bgGSatStrVar.set(sClas.getASettings('bgdNGSatMax', value='actual'))
+		self.advSetWindow.bgGBriStrVar.set(sClas.getASettings('bgdNGBriMin', value='actual'))
+
+		self.advSetWindow.smrThreStrVar.set(sClas.getASettings('smrThreshMin', value='actual'))
+		self.advSetWindow.smrHDifStrVar.set(sClas.getASettings('smrDiffW', value='actual'))
+		self.advSetWindow.smrGPenStrVar.set(sClas.getASettings('smrGreyPenaltyW', value='actual'))
+		self.advSetWindow.smrPxlStrVar.set(sClas.getASettings('smrPxlMin', value='actual'))
+		
+		self.advSetWindow.dgrThreStrVar.set(sClas.getASettings('dgrThreshMin', value='actual'))
+		self.advSetWindow.dgrRelLStrVar.set(sClas.getASettings('dgrLRelMax', value='actual'))
+		self.advSetWindow.dgrLMinStrVar.set(sClas.getASettings('dgrLMin', value='actual'))
+		self.advSetWindow.dgrLDifStrVar.set(sClas.getASettings('dgrDistMax', value='actual'))
+		self.advSetWindow.dgrAEdgStrVar.set(sClas.getASettings('dgrAEdge', value='actual'))
+		self.advSetWindow.dgrBEdgStrVar.set(sClas.getASettings('dgrBEdge', value='actual'))
+		self.advSetWindow.dgrFracStrVar.set(sClas.getASettings('dgrFracMin', value='actual'))
+	
+		self.advSetWindow.statusMsgStrVar.set("Settings Reset.")
+	
 	
 	#Get the row and column of a mouse click on the sample analysis image
 	def getClickRowAndCol(self, event):
@@ -732,7 +926,7 @@ Row 	{}
 
 		if seedFracStr=='-1' or 'NaN' in str(seedFracStr):
 			stringRep = 'NaN' if char==False else 'N'
-		elif sAnly.isDGR(seedFracStr):
+		elif sClas.getSeedAnly().isDGR(seedFracStr):
 			stringRep = 'DGR' if char==False else 'D'
 		else:
 			stringRep = 'Not DGR' if char==False else 'G'

@@ -1,0 +1,38 @@
+
+~~~~~~~~~~~~~Canola Seed Grading~~~~~~~~~~~~~
+Date: 		Thu Oct 17 20:40:26 2019
+Grade:		No. 4 
+
+Distinctly Green Sample %:	30.522%
+Distinctly Green Seeds:		152
+Used Seed Sample Size:		498
+Initial Seed Sample Size: 	544
+Discarded Seeds:		46
+Unaltered Grade:		True
+
+Calibration Image Used:		CalibrationImages\guiCalibrationPhoto.png
+Seed Sample Image Used:		Images\guiSeedSamplePhoto_35.png
+Time to Grade:			Time: 0 minutes, 14.183 seconds.
+
+D = Distinctly Green, G = Not Distinctly Green, N = Discarded Seed
+		Col
+		1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20	21	22	23	24	25	26	27	28	29	30	31	32
+Row 	1	G	G	G	G	D	G	G	G	D	D	G	G	G	G	G	D	D	G	D	D	D	D	D	G	G	D	D	G	D	G	D	G
+	2	D	G	G	G	G	G	G	G	G	G	G	G	G	G	D	G	G	D	G	D	D	G	D	D	G	D	D	G	D	D	D	G
+	3	G	G	G	G	G	G	G	G	G	G	G	G	G	D	D	G	D	D	G	D	G	D	G	D	G	D	G	G	D	G	D	G
+	4	D	G	G	G	D	G	G	G	G	G	D	G	G	G	G	G	G	D	G	G	G	G	G	D	G	G	G	G	G	G	D	G
+	5	G	G	G	G	G	G	G	D	G	G	G	G	G	G	G	D	G	G	G	G	G	G	D	D	D	D	G	D	D	G	G	G
+	6	G	G	G	G	D	G	D	G	G	G	D	G	D	G	G	G	G	D	D	D	G	G	G	G	D	G	G	D	D	G	D	G
+	7	G	D	D	G	G	G	G	G	G	G	G	G	G	G	G	G	G	G	G	G	D	D	G	G	G	D	D	D	D	D	G	G
+	8	D	D	G	D	G	G	G	G	G	G	G	G	G	D	G	D	G	D	G	D	D	G	D	G	D	G	G	D	D	D	D	G
+	9	D	G	G	D	G	G	G	G	D	G	G	G	G	G	G	G	G	G	G	G	G	G	G	G	G	G	D	G	G	G	G	G
+	10	G	D	G	G	G	G	G	G	D	D	G	G	G	G	D	G	D	G	D	G	G	G	G	G	D	G	G	G	G	D	D	G
+	11	G	D	G	D	G	G	G	G	D	G	G	G	D	G	G	G	G	G	G	G	G	G	G	G	D	D	D	D	G	D	D	G
+	12	G	G	G	G	D	G	G	G	G	G	G	G	D	D	G	G	D	D	G	G	G	G	G	G	G	G	G	G	D	G	D	G
+	13	G	D	G	G	G	G	G	G	D	G	D	G	G	D	G	G	G	G	G	G	G	G	G	G	G	G	D	D	D	D	D	D
+	14	G	G	G	D	G	D	G	G	D	G	G	G	G	D	G	G	G	G	D	G	G	D	G	G	G	G	D	G	G	D	D	D
+	15	G	G	G	G	G	G	G	G	D	G	D	D	G	G	G	G	G	G	D	G	G	D	G	G	G	G	D	G	D	G	D	G
+	16	G	G	G	G	G	G	G	G	D	G	G	G	G	G	G	G	G	G	D	G	G	G	D	G	G	G	G	G	G	D	G	G
+	17	G	G	G	D	G	G	G	G	G	D	G	G	G	D	G	G	G	G	G	G	G	G	G	G	D	G	G	G	D	G	G	D
+	
+		

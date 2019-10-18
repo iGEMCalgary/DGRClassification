@@ -5,7 +5,7 @@ import math
 from matplotlib import pyplot as plt
 import queue
 import os
-
+import requests
 
 #Provides basic utility functions for images
 class ImgUtility:		
@@ -184,6 +184,7 @@ class ImgUtility:
 		return averageImg
 		
 	#Create a mask using thresholds
+	#Remove values below the given threshold
 	def maskImg(self, img, msk, threshold, background=True):
 		blurredImg = np.zeros_like(img)
 		if background == True:
@@ -311,6 +312,10 @@ class ImgCamera:
 	#Constructor gets camera index, defaults to webcam if available
 	#If cameraIndex = None, attempts to search for the camera (webcam last)
 	def __init__(self, cameraIndex = 0):
+		#Settings for IP webcam mode
+		self.url = None
+		self.mode = 'webcam'
+	
 		#The default saved image is just a black 200x200 image.
 		self.memImg = np.zeros((200,200,3),dtype=np.uint8)
 		
@@ -328,24 +333,51 @@ class ImgCamera:
 			self.cameraIndex = cameraIndex
 		print("Camera Found at Index {}.".format(self.cameraIndex))
 	
+	#Switch to using the broadcast of a phone camera.
+	def switchToIPCam(self, URL):
+		try:
+			self.URL = URL + "/shot.jpg"
+			print(self.URL)
+			imgResp = requests.get(self.URL)
+			imgArr = np.array(bytearray(imgResp.content), dtype=np.uint8)
+			camImg = cv2.imdecode(imgArr, -1)
+			print(camImg.size)
+			self.mode = 'android'
+			return "Success: Camera accessed."
+		except:
+			return "Error: Could not connect."
+	
 	#Take a picture using the camera and return the status or image
 	#Also save the most recent image.
 	def takePhoto(self, custCamIndex = None, wantStatus=False):
-		if custCamIndex == None:
-			camInd = self.cameraIndex
+		if self.mode == 'webcam':
+			if custCamIndex == None:
+				camInd = self.cameraIndex
+			else:
+				camInd = custCamIndex
+				
+			camera = cv2.VideoCapture(camInd, cv2.CAP_DSHOW)
+			status, camImg = camera.read()
+			status, camImg = camera.read()
+			cv2.destroyAllWindows()
+			if wantStatus:
+				return status
+			elif status:
+				self.memImg = camImg
+				return camImg
 		else:
-			camInd = custCamIndex
-			
-		camera = cv2.VideoCapture(camInd, cv2.CAP_DSHOW)
-		status, camImg = camera.read()
-		status, camImg = camera.read()
-		cv2.destroyAllWindows()
-		if wantStatus:
-			return status
-		elif status:
-			self.memImg = camImg
-			return camImg
-			
+			try:
+				imgResp = requests.get(self.URL)
+				imgArr = np.array(bytearray(imgResp.content), dtype=np.uint8)
+				camImg = cv2.imdecode(imgArr, -1)
+				self.memImg = camImg
+				return camImg
+			except:
+				#return to other form and take a picture that way
+				self.__init__()
+				self.mode = 'webcam'
+				return self.takePhoto()
+		
 	#Get the most recent image taken
 	def getMostRecentPhoto(self):
 		return self.memImg

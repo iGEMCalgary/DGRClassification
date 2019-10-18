@@ -4,6 +4,7 @@ import cv2
 from matplotlib import pyplot as plt
 import math
 import time
+import os
 from MGM_DGR_ImageFormatting import ImgUtility
 from MGM_DGR_ImageFormatting import ImgCalibrator
 from sklearn.preprocessing import MinMaxScaler
@@ -12,10 +13,40 @@ from sklearn.preprocessing import MinMaxScaler
 class SeedClassifier:
 	#Default constructor comes with an image formatter
 	def __init__(self):
-		self.iForm = ImgUtility()
+		#Parameters for calculations map
+		#[0]=default value, [1]=actual value, [2]=limits
+		self.paramMap={
+			'bgdSatMax':		[35,	35,		(0,100)],
+			'bgdNGSatMax':		[30,	30,		(0,100)],
+			'bgdNGBriMin':		[25,	25,		(0,100)],
+			'smrThreshMin':		[210,	210,	(0,255)],
+			'smrDiffW':			[1.1,	1.1,	(0,10)],
+			'smrGreyPenaltyW':	[1.4,	1.4,	(0,10)],
+			'smrPxlMin':		[0,		0,		(0,900)],		
+			'dgrThreshMin':		[100,	100, 	(0,255)],
+			'dgrLRelMax':		[3.6,	3.6,	(0,100)],
+			'dgrLMin':			[5,		5,		(0,100)],
+			'dgrDistMax':		[20,	20,		(0,50)],
+			'dgrAEdge':			[-0.42,	-0.42,	(-1.28, -0.4)],
+			'dgrBEdge':			[0.62,	0.62, 	(0.4, 1.28)],
+			'dgrFracMin':		[0.5,	0.5,	(0,1)]
+		}
+
 		self.sAnly = SeedSampleAnalyzer()
-		self.colorChipCol = np.array([255,255,255])
+
+		self.settingsFileName = r'advancedSettings.txt'
+		self.loadASettings()
 		
+		self.iForm = ImgUtility()
+		self.sAnly.setConstants(self.paramMap['dgrFracMin'][1], self.paramMap['smrPxlMin'][1])
+		
+		self.colorChipCol = np.array([255,255,255])
+	
+
+	#get seed analyzer
+	def getSeedAnly(self):
+		return self.sAnly
+	
 	#determine the difference between the current time and the given start time
 	def timeEndTime(self, startTime):
 		endTime = time.time()
@@ -26,6 +57,68 @@ class SeedClassifier:
 			timeString = "Time: {} minutes, {:5.3f} seconds.".format(math.floor(deltaTime/60.0), deltaTime % 60)
 		
 		return timeString
+	
+	#Get the specific value from the analyzer parameter settings
+	#values are 'default' for default parameters, 'actual' for actual parameters,
+	#and 'limit' for the range of potential values
+	def getASettings(self, key, value='actual'):
+		valueDict = {'default':0, 'actual':1, 'limits':2}
+		return self.paramMap[key][valueDict[value]]
+	
+	#set the actual values of all the parameters with a dictionary of all the settings
+	#return true if set successful, return false if not
+	def setASettings(self, paramA):
+		#Copy all values in the dict over with all the keys
+		if(paramA.keys()!=self.paramMap.keys()):	
+			return False
+		for key in self.paramMap.keys():
+			if(paramA[key]<self.paramMap[key][2][0] or paramA[key]>self.paramMap[key][2][1]):
+				return False
+			self.paramMap[key][1]=paramA[key]
+		
+		#set settings for the seed analyzer
+		self.sAnly.setConstants(self.paramMap['dgrFracMin'][1], self.paramMap['smrPxlMin'][1])
+		
+		#save the settings to a txt file
+		settingsTxt = self.getASettingsString()
+		settingsFile = open(self.settingsFileName, 'w')
+		settingsFile.write(settingsTxt)
+		settingsFile.close()
+		
+		return True
+	
+	#Load the parameter files if the advanced settings file exists.
+	def loadASettings(self):
+		if(not os.path.exists(self.settingsFileName) or not os.path.isfile(self.settingsFileName)):
+			return
+		settingsFile = open(self.settingsFileName, 'r')
+		
+		#parse settings from file
+		count = 0
+		for line in settingsFile:
+			count = count+1			
+			if count==1:			#skip first line
+				continue
+			words = line.split()
+			self.paramMap[words[0][:-1]][1]=float(words[1])	
+			
+		settingsFile.close()
+		self.sAnly.setConstants(self.paramMap['dgrFracMin'][1], self.paramMap['smrPxlMin'][1])
+		
+		print("Advanced Settings Loaded.")
+	
+	#Get the list of advanced settings as a string
+	def getASettingsString(self):
+		settingsTxt = 'Advanced Settings:\n'
+		for key in self.paramMap.keys():
+			settingsTxt = settingsTxt + key + ":			" + str(self.paramMap[key][1]) + "\n"
+		return settingsTxt
+		
+	#reset the actual values to be the default parameters
+	def resetASettings(self):
+		for setting in self.paramMap.keys():
+			self.paramMap[setting][1]=self.paramMap[setting][0]
+		self.sAnly.setConstants(self.paramMap['dgrFracMin'][1], self.paramMap['smrPxlMin'][1])
 	
 	#Aqcuire the DGR ratings for each seed and return them
 	def classifySeedSample(self, seedList, dgrColChip, displaySteps=False):
@@ -82,7 +175,7 @@ class SeedClassifier:
 
 	#Determines if a given HSV pixel is background.
 	def isBackground(self, imgPxl):
-		svConv = lambda x: 0.01*x*255
+		svConv = lambda x: 0.01*x*255	
 		hConv = lambda x: x/2.
 		greenHue = lambda x: x > hConv(70) and x < hConv(130)
 		
@@ -90,13 +183,13 @@ class SeedClassifier:
 		imgPxl = [int(imgPxl[0]), int(imgPxl[1]), int(imgPxl[2])]	
 		
 		#background = GRAY (not saturated)
-		notSaturated = imgPxl[1] < svConv(35)
+		notSaturated = imgPxl[1] < svConv(self.paramMap['bgdSatMax'][1])
 		
 		#exceptions exist for GREEN hue but almost saturated enough
-		greenAlmostNotSaturated = greenHue(imgPxl[0]) and imgPxl[1] > svConv(30)
+		greenAlmostNotSaturated = greenHue(imgPxl[0]) and imgPxl[1] > svConv(self.paramMap['bgdNGSatMax'][1])
 		
 		#exceptions exist for GREEN hue and not saturated but very dark
-		greenVeryDark = greenHue(imgPxl[0]) and imgPxl[2] < svConv(25)
+		greenVeryDark = greenHue(imgPxl[0]) and imgPxl[2] < svConv(self.paramMap['bgdNGBriMin'][1])
 		
 		return notSaturated and not greenAlmostNotSaturated and not greenVeryDark
 	
@@ -151,16 +244,16 @@ class SeedClassifier:
 	#Mask the smear from the seed image using hsv hardcoded threshold values
 	#Returns [masked img, masked img for display, full smear img]
 	def maskSmearFromSeedWithHSVDist(self, seedImg, DGRChip):
-		startTime = time.time()														#Begin timing
+		startTime = time.time()																	#Begin timing
 		
-		colorDistances = self.differenceImgColor(seedImg, DGRChip)						#Get the differences in each pixel as a grayscale image
+		colorDistances = self.differenceImgColor(seedImg, DGRChip)								#Get the differences in each pixel as a grayscale image
 
-		threshVal = 210																#Threshold value		
-		seedImgDisplay = self.iForm.maskImg(seedImg, colorDistances, threshVal)				#Create the masked smear img
+		threshVal = self.paramMap['smrThreshMin'][1]											#Threshold value		
+		seedImgDisplay = self.iForm.maskImg(seedImg, colorDistances, threshVal)					#Create the masked smear img
 		seedImgRel = self.iForm.maskImg(seedImg, colorDistances, threshVal, background=False)	#Create the masked smear img for display
 		seedImg = seedImgRel.copy()
 		
-		#print("Relevant Seed Determined. " + self.timeEndTime(startTime))				#Get time for smear speration process
+		#print("Relevant Seed Determined. " + self.timeEndTime(startTime))						#Get time for smear speration process
 		return [seedImg, seedImgDisplay, seedImgRel]
 	
 	#Return an image displaying the differences in color between a given img and a colour
@@ -207,10 +300,10 @@ class SeedClassifier:
 		if pxl1[0]==0 and pxl1[1]==0 and pxl1[2]==0:
 			return 90
 				
-		hueDiffWeight = 1.1
+		hueDiffWeight = self.paramMap['smrDiffW'][1]
 
-		#Distance penalties for gray = 1.4(x-70/2)
-		grayPenalty = lambda x: 1.4*(x-70/2) if x <= 70/2 else 0
+		#Distance penalties for gray = 1.4(saturation-70/2)
+		grayPenalty = lambda x: self.paramMap['smrGreyPenaltyW'][1]*(x-70/2) if x <= 70/2 else 0
 				
 		if pxl1[0] > 70/2 and pxl1[0] <= 130/2:
 			return grayPenalty(pxl1[1])
@@ -234,30 +327,26 @@ class SeedClassifier:
 		#P = 3.6*(1.L-2.L)**2
 		LDiff = pxl1[0] - self.colorChipCol[0]
 		if LDiff > 0:
-			totalPenalty = totalPenalty + 3.6*(LDiff**2)
+			totalPenalty = totalPenalty + self.paramMap['dgrLRelMax'][1]*(LDiff**2)
 		
 		#Being too dark also incurs a penalty at L < 5
 		#P = (-L+5)**2
-		if pxl1[0] < 5:	
+		if pxl1[0] < self.paramMap['dgrLMin'][1]:	
 			totalPenalty = totalPenalty + 2*(-pxl1[0]+5)**2
 		
 		#Color penalty maxes out at distance d=20 from ab region
 		#P = rate*D = (90/d)*(limit-real)
 		#a region is [-128, -0.42*L]
-		rate = 90/20
+		rate = 90/self.paramMap['dgrDistMax'][1]	
 		
-		aDiff = pxl1[1] - (-0.42)*pxl1[0]
+		aDiff = pxl1[1] - self.paramMap['dgrAEdge'][1]*pxl1[0]
 		if aDiff > 0:
 			totalPenalty = totalPenalty + rate*aDiff
 		
 		#b region is [0, 0.62*L)]
-		bDiff = 0.62*pxl1[0] - pxl1[2]
+		bDiff = self.paramMap['dgrBEdge'][1]*pxl1[0] - pxl1[2]
 		if bDiff > 0:
 			totalPenalty = totalPenalty + rate*bDiff
-		
-		#if totalPenalty < 100:
-		#	print("lol")
-		#print(totalPenalty)
 		
 		#Max penalty is 90
 		return min([totalPenalty, 90])
@@ -275,7 +364,7 @@ class SeedClassifier:
 		
 		colorDistances = self.differenceImgColor(seedImg.copy(), DGRChip, dgr='dgr')			#Get the differences in each pixel as a grayscale image
 
-		threshVal = 100																			#Threshold value	
+		threshVal = self.paramMap['dgrThreshMin'][1]											#Threshold value	
 		seedImgDisplay = self.iForm.maskImg(seedImg, colorDistances, threshVal)					#Create the masked dgr img
 		seedImgDGR = self.iForm.maskImg(seedImg, colorDistances, threshVal, background=False)	#Create the masked dgr img for display
 		seedImg = seedImgDGR.copy()
@@ -288,12 +377,19 @@ class SeedClassifier:
 #Analyzes seed sample statistics
 class SeedSampleAnalyzer:
 	#Default constructor
-	def __init__(self):
-		self.dgrThreshold = 0.5
+	def __init__(self):	
+		self.dgrThreshold = 0.5		#dgr fraction must be greater than this
+		self.smrPixelMin = 0		#relevant smear must be greater than this many pixels
+		
 		self.gradingColourDict = {'NotDGR':[0,255,255],'DGR':[0,0,255],'NaN':[255,0,0],
 								  'cust_NotDGR':[19,128,128],'cust_DGR':[19,19,128],'cust_NaN':[128,19,19]}
 		self.iForm = ImgUtility()
-		
+	
+	#Set the constants of this analyzer
+	def setConstants(self, dgrFracMin, smrPxlMin):
+		self.dgrThreshold = dgrFracMin
+		self.smrPixelMin = smrPxlMin
+	
 	#Grade an individual seed
 	def gradeSeed(self, seedImgFul, seedImgRel, seedImgDGR):		
 		#Count the number of non-zero ([0,0,0]) pixels in each image
@@ -306,7 +402,7 @@ class SeedSampleAnalyzer:
 		analysisString = "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 		
 		#Display the information about the seed.
-		if areaRel > 0:
+		if areaRel > self.smrPixelMin:
 			dgrFrac = float(areaDGR)/float(areaRel)
 			analysisString = analysisString + "The full area of the seed is: {} pixels.".format(areaFul)
 			analysisString = analysisString + "The relevant/non-hull area of the seed is: {} pixels.".format(areaRel)
@@ -345,7 +441,7 @@ class SeedSampleAnalyzer:
 		else:
 			return [analysisString, timeString]
 
-	#Determine if a seed is usable or not
+	#Determine if a seed is usable or not (not 'NaN')
 	def positive(self, dgrFrac):
 		if dgrFrac == 'cust_DGR':
 			return True
@@ -444,15 +540,15 @@ class SeedSampleAnalyzer:
 			borderCol = self.gradingColourDict['NotDGR']
 
 		seedBorderedList = [
-		self.iForm.drawBox(
-		self.iForm.drawBox(
+		#self.iForm.drawBox(
+		#self.iForm.drawBox(
 		self.iForm.drawBox(
 		self.iForm.drawBox(
 		self.iForm.drawBox(seedImg, (0,0), (seedImg.shape[1]-1,seedImg.shape[0]-1), overlayCol=borderCol),
 		(1,1), (seedImg.shape[1]-2,seedImg.shape[0]-2), overlayCol=borderCol), 
-		(2,2), (seedImg.shape[1]-3,seedImg.shape[0]-3), overlayCol=borderCol),
-		(3,3), (seedImg.shape[1]-4,seedImg.shape[0]-4), overlayCol=borderCol), 
-		(4,4), (seedImg.shape[1]-5,seedImg.shape[0]-5), overlayCol=borderCol) for seedImg in seedImgTrio]
+		(2,2), (seedImg.shape[1]-3,seedImg.shape[0]-3), overlayCol=borderCol) for seedImg in seedImgTrio]
+		#(3,3), (seedImg.shape[1]-4,seedImg.shape[0]-4), overlayCol=borderCol), 
+		#(4,4), (seedImg.shape[1]-5,seedImg.shape[0]-5), overlayCol=borderCol) for seedImg in seedImgTrio]
 				
 		return tuple(seedBorderedList)
 		

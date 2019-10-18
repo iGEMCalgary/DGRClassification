@@ -1,0 +1,29 @@
+
+~~~~~~~~~~~~~Canola Seed Grading~~~~~~~~~~~~~
+Date: 		Thu Oct 17 20:53:22 2019
+Grade:		No. 3 
+
+Distinctly Green Sample %:	6.452%
+Distinctly Green Seeds:		4
+Used Seed Sample Size:		62
+Initial Seed Sample Size: 	64
+Discarded Seeds:		2
+Unaltered Grade:		True
+
+Calibration Image Used:		CalibrationImages\guiCalibrationPhoto.png
+Seed Sample Image Used:		Images\guiSeedSamplePhoto_38.png
+Time to Grade:			Time: 0 minutes, 1.852 seconds.
+
+D = Distinctly Green, G = Not Distinctly Green, N = Discarded Seed
+		Col
+		1	2	3	4	5	6	7	8
+Row 	1	G	G	G	G	G	G	G	G
+	2	G	G	G	G	G	G	G	G
+	3	G	G	G	D	G	G	G	G
+	4	G	G	G	G	G	G	G	G
+	5	G	G	G	G	G	G	G	G
+	6	G	G	G	G	G	G	D	G
+	7	G	G	G	G	G	G	D	G
+	8	G	D	G	G	G	G	G	G
+	
+		
