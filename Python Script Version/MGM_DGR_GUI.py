@@ -44,7 +44,7 @@ class GUI(Frame):
 	def __init__(self, master=None):
 		#Basic frame creation with fixed width and height range
 		Frame.__init__(self, master)
-		master.title("yOIL Seed Sample Classifier")
+		master.title("yOIL GreatGrader: Seed Sample Classifier")
 		wMin,hMin = 1100, 600
 		wMax, hMax = 1280, 720
 		master.minsize(width=wMin, height=hMin)
@@ -171,7 +171,6 @@ class GUI(Frame):
 		
 		self.infSamGriDat = (1,1)
 		self.infSamGriLab = Button(buttonPanel, text="Edit Sample Grid", command=self.infSamGriCmd, bg="#6A4C93").grid(row=13,column=0,columnspan=4)
-
 		
 		#The information canvas panel will be below the button panel
 		self.infClaStrVar = StringVar()
@@ -242,7 +241,10 @@ class GUI(Frame):
 		self.graDisLab = Label(imagePanel, text= "Seed Sample Image:", bg="#71A520").grid(sticky='E',row=2, column=0)
 		self.graDisLabStrVar = StringVar()
 		self.graDisLabStrVar.set("No Image Yet.")
-		self.graDisLabVar = Label(imagePanel, textvariable=self.graDisLabStrVar, bg="#FFCA3A").grid(sticky='W',row=2,column=1)
+		
+		self.graDisCount = 0
+		self.graDisExpWin = None
+		self.graDisLabBut = Button(imagePanel, textvariable=self.graDisLabStrVar, command=self.graDisLabCmd, bg="#FFCA3A").grid(sticky='W',row=2,column=1)
 		
 		self.exaDisImgDim = (250,200)
 		self.exaDisImg = convImg(blankImg(self.exaDisImgDim))
@@ -250,15 +252,6 @@ class GUI(Frame):
 		self.exaDis.grid(sticky="NW", row=3,column=2, padx=5, pady=5)
 		self.exaDisLab = Label(imagePanel, text= "Examined Seed", bg="#71A520").grid(row=2, column=2)
 		
-		"""
-		self.exaAnaFrame = Frame(imagePanel, width=200, height=200,bg="Blue")
-		self.exaAnaFrame.grid(sticky="NW", row=4, column=2, padx=5, pady=5)
-		#self.exaAnaStrVar = StringVar()
-		#self.exaAnaStrVar.set("balls")
-		self.exaAnaTxt = Text(self.exaAnaFrame)
-		self.exaAnaTxt.insert(END,"BALLS")
-		self.exaAnaTxt.place()
-		"""
 		self.exaAnaTxt = Text(imagePanel, bg="#FFCA3A", width=30, height=11)
 		self.exaAnaTxt.grid(sticky="NW", row=4, column=2, padx=5, pady=5)
 		self.exaAnaTxt.insert(END,"No Grade Yet.")
@@ -593,18 +586,23 @@ Seed Sample Crop Y2:		{}
 		if self.toggleState==0:
 			self.updateSampleImage(self.rawSamImg)
 			self.graDisLabStrVar.set("Raw Image")
+
 		elif self.toggleState==1:
 			self.updateLabelImg(self.graDis, convImg(iForm.resizeImg(self.togImgWm, self.graDisImgDim[0], self.graDisImgDim[1])))
 			self.graDisLabStrVar.set("Graded Seeds Image")
+			
 		elif self.toggleState==2:
 			self.updateLabelImg(self.graDis, convImg(iForm.resizeImg(self.togImgRel, self.graDisImgDim[0], self.graDisImgDim[1])))
 			self.graDisLabStrVar.set("Graded Smears Image")
+			
 		elif self.toggleState==3:
 			self.updateLabelImg(self.graDis, convImg(iForm.resizeImg(self.togImgDGR, self.graDisImgDim[0], self.graDisImgDim[1])))
 			self.graDisLabStrVar.set("Graded DGR Pixels Image")
+			
 		elif self.toggleState==4:
 			self.updateLabelImg(self.graDis, convImg(iForm.resizeImg(self.togImgConf, self.graDisImgDim[0], self.graDisImgDim[1])))
 			self.graDisLabStrVar.set("Grading Confidence Image")
+			
 	
 	#Update the preview calibration crop settings and image
 	def infCalCroCmd(self):
@@ -678,6 +676,50 @@ Seed Sample Crop Y2:		{}
 		#If the parameters are valid, update them and the images 
 		self.infSamGriDat = (newRow,newCol)
 		self.updateSampleImage(self.rawSamImg)
+	
+	#Enlarges the current grading image in a new window if there is one present.
+	def graDisLabCmd(self):
+		#ensure only one settings window is open at any time
+		if self.infClaStrVar.get() == "No grade yet.":
+			self.infLogTxt.insert(END, "\nNo seed sample graded yet.")
+			return
+		if self.graDisCount > 0:
+			return
+		self.graDisCount = self.graDisCount + 1
+		
+		#Create the window
+		self.graDisExpWin = Toplevel(self)
+		self.graDisExpWin.wm_title(self.graDisLabStrVar.get())
+		self.graDisExpWin.protocol("WM_DELETE_WINDOW", self.closeSampleImgWindow)
+		
+		#Add the image to the window
+		self.graDisExpWin.mainImgDim = (880,660)
+		self.graDisExpWin.mainImg = Label(self.graDisExpWin, image=convImg(blankImg((100, 100))))
+		self.graDisExpWin.mainImg.pack()
+		
+		if self.toggleState==0:												
+			self.updateLabelImg(self.graDisExpWin.mainImg, convImg(iForm.drawGrid(iForm.resizeImg(iForm.cropImg(self.rawSamImg, self.infSamCroDat[0], 
+								self.infSamCroDat[1]), self.graDisExpWin.mainImgDim[0], self.graDisExpWin.mainImgDim[1]), (0.,0.),(1.,1.),self.infSamGriDat[0], self.infSamGriDat[1])))
+
+		elif self.toggleState==1:
+			self.updateLabelImg(self.graDisExpWin.mainImg, convImg(iForm.resizeImg(self.togImgWm, self.graDisExpWin.mainImgDim[0], self.graDisExpWin.mainImgDim[1])))
+			
+		elif self.toggleState==2:
+			self.updateLabelImg(self.graDisExpWin.mainImg, convImg(iForm.resizeImg(self.togImgRel, self.graDisExpWin.mainImgDim[0], self.graDisExpWin.mainImgDim[1])))
+			
+		elif self.toggleState==3:
+			self.updateLabelImg(self.graDisExpWin.mainImg, convImg(iForm.resizeImg(self.togImgDGR, self.graDisExpWin.mainImgDim[0], self.graDisExpWin.mainImgDim[1])))
+			
+		elif self.toggleState==4:
+			self.updateLabelImg(self.graDisExpWin.mainImg, convImg(iForm.resizeImg(self.togImgConf, self.graDisExpWin.mainImgDim[0], self.graDisExpWin.mainImgDim[1])))
+
+		#TODO
+	
+	
+	#close the expanded graded image window
+	def closeSampleImgWindow(self):
+		self.graDisCount = self.graDisCount - 1
+		self.graDisExpWin.destroy()
 	
 	#Opens an advanced settings window
 	def advSetButCmd(self):

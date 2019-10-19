@@ -22,14 +22,14 @@ class SeedClassifier:
 			'smrThreshMin':		[210,	210,	(0,255)],
 			'smrDiffW':			[1.1,	1.1,	(0,10)],
 			'smrGreyPenaltyW':	[1.4,	1.4,	(0,10)],
-			'smrPxlMin':		[0,		0,		(0,900)],		
+			'smrPxlMin':		[5,		5,		(0,900)],		
 			'dgrThreshMin':		[100,	100, 	(0,255)],
 			'dgrLRelMax':		[3.6,	3.6,	(0,100)],
 			'dgrLMin':			[5,		5,		(0,100)],
 			'dgrDistMax':		[20,	20,		(0,50)],
 			'dgrAEdge':			[-0.42,	-0.42,	(-1.28, -0.4)],
 			'dgrBEdge':			[0.62,	0.62, 	(0.4, 1.28)],
-			'dgrFracMin':		[0.5,	0.5,	(0,1)]
+			'dgrFracMin':		[0.55,	0.55,	(0,1)]
 		}
 
 		self.sAnly = SeedSampleAnalyzer()
@@ -423,7 +423,7 @@ class SeedSampleAnalyzer:
 		#Count quantities of seeds
 		totalSeedCount = len(seedSampleInfo) 
 			
-		usableSeedCount = [self.positive(seedInfo[1]) for seedInfo in seedSampleInfo].count(True)
+		usableSeedCount = max([[self.positive(seedInfo[1]) for seedInfo in seedSampleInfo].count(True), 1])
 		greenSeedCount = [self.isDGR(seedInfo[1]) for seedInfo in seedSampleInfo].count(True)
 		
 		dgrFrac = greenSeedCount/usableSeedCount
